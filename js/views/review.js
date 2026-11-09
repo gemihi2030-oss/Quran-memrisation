@@ -10,6 +10,7 @@ import { applyGrade, nextState, durationLabel, todayStr, GRADE_LABELS, AGAIN, HA
 import { show, current, updateChrome } from "../router.js";
 import { openEditor } from "./editor.js";
 import { openGallery } from "./lightbox.js";
+import { mapImages, linkImages } from "./cards.js";
 
 const root = () => $("#view-review");
 let session = null;
@@ -156,8 +157,9 @@ function recallHTML() {
   const { rec } = cur;
   const hasAyahs = rec.ayahs.length > 0;
   const hasHookAyahs = rec.ayahs.some(x => x.hook || x.img || x.note);
-  const imgs = [...rec.images, ...rec.ayahs.filter(x => x.img).map(x => x.img)];
-  const maps = rec.maps || [];
+  const photos = reviewPhotos(rec);
+  const maps = photos.filter(p => p.kind === "map");
+  const imgs = photos.filter(p => p.kind === "link");
 
   let cueBlock;
   if (cur.showCue && rec.cue) cueBlock = `<div class="cue"><span class="quran-inline">${esc(rec.cue)}</span> …</div>`;
@@ -179,8 +181,8 @@ function recallHTML() {
       ${cueBlock}
       ${cur.linksShown ? `<div class="chips">${rec.links.slice(0, cur.linksShown).map(l => `<span class="chip">${esc(l)}</span>`).join("")}</div>` : ""}
       ${cur.showNotes ? `<p class="notes">${esc(rec.notes)}</p>` : ""}
-      ${cur.showMaps ? `<div class="images maps">${maps.map(src => `<img src="${src}" alt="الخريطة الذهنية" data-action="zoom">`).join("")}</div>` : ""}
-      ${cur.showImages ? `<div class="images">${imgs.map(src => `<img src="${src}" alt="صورة تربيط" data-action="zoom">`).join("")}</div>` : ""}
+      ${cur.showMaps ? photosHTML(maps, "images maps") : ""}
+      ${cur.showImages ? photosHTML(imgs, "images") : ""}
     </div>
     ${hintBtns.length ? `<div class="row wrap center-row">${hintBtns.join("")}</div>` : ""}
     <button class="btn primary big" data-action="reveal">📖 سمّعت — أظهر الصفحة</button>
@@ -251,8 +253,9 @@ function answerHTML() {
   const cur = session.cur;
   const { rec, marks } = cur;
   const nxt = pages.get(rec.page + 1);
-  const imgs = [...rec.images];
-  const maps = rec.maps || [];
+  const photos = reviewPhotos(rec);
+  const maps = photos.filter(p => p.kind === "map");
+  const imgs = photos.filter(p => p.kind === "link");
   const gradeBtns = [AGAIN, HARD, GOOD, EASY].map(g => `<button class="grade g${g}" data-action="grade" data-g="${g}">${GRADE_LABELS[g]}<small>${gradePreview(g)}</small></button>`).join("");
 
   return `
@@ -264,12 +267,23 @@ function answerHTML() {
            <button class="link-btn" data-action="edit">إضافة الآيات</button></div>`}
     ${rec.links.length ? `<h3>🔗 كلمات الربط</h3><div class="chips">${rec.links.map(l => `<span class="chip">${esc(l)}</span>`).join("")}</div>` : ""}
     ${rec.notes ? `<h3>🧠 الصورة الذهنية</h3><p class="notes">${esc(rec.notes)}</p>` : ""}
-    ${maps.length ? `<h3>🗺️ الخريطة الذهنية</h3><div class="images maps">${maps.map(src => `<img src="${src}" alt="الخريطة الذهنية" data-action="zoom">`).join("")}</div>` : ""}
-    ${imgs.length ? `<h3>🖼️ صور التربيط</h3><div class="images">${imgs.map(src => `<img src="${src}" alt="صورة تربيط" data-action="zoom">`).join("")}</div>` : ""}
+    ${maps.length ? `<h3>🗺️ الخريطة الذهنية</h3>${photosHTML(maps, "images maps")}` : ""}
+    ${imgs.length ? `<h3>🖼️ صور التربيط</h3>${photosHTML(imgs, "images")}` : ""}
     ${nxt?.cue ? `<p class="next-link">🔗 <b>اربطها بما بعدها:</b> الصفحة ${nxt.page} تبدأ بـ <span class="quran-inline">${esc(nxt.cue)}</span></p>` : ""}
     <h3 class="center">كيف كان استرجاعك؟</h3>
     <p class="suggest" id="suggestBox">${suggestText()}</p>
     <div class="grades" id="grades">${gradeBtns}</div>`;
+}
+
+// صور الصفحة مرقّمة (i) ليتنقل العارض بينها كلها
+function reviewPhotos(rec) {
+  return [...mapImages(rec), ...linkImages(rec)].map((p, i) => ({ ...p, i }));
+}
+
+function photosHTML(list, cls) {
+  return `<div class="${cls}">${list
+    .map(p => `<img src="${p.src}" alt="${p.kind === "map" ? "الخريطة الذهنية" : "صورة تربيط"}" data-action="zoom" data-i="${p.i}">`)
+    .join("")}</div>`;
 }
 
 // ---------- التقييم ----------
@@ -425,8 +439,14 @@ delegate(root(), {
     renderCard();
   },
   zoom: el => {
-    const all = [...root().querySelectorAll('img[data-action="zoom"]')];
-    openGallery(all.map(im => ({ src: im.src, caption: `الصفحة ${session.cur.rec.page} · ${im.alt}` })), all.indexOf(el));
+    const { rec } = session.cur;
+    const items = reviewPhotos(rec).map(p => ({
+      src: p.src,
+      url: p.url,
+      time: p.time,
+      caption: `الصفحة ${rec.page} · ${p.kind === "map" ? "الخريطة الذهنية" : "صورة تربيط"}`,
+    }));
+    openGallery(items, +el.dataset.i);
   },
   "show-notes": () => {
     session.cur.showNotes = true;

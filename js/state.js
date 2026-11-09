@@ -2,6 +2,7 @@
 import { DB, Store } from "./db.js";
 import { todayStr, addDays, daysBetween, isDue, newCard } from "./srs.js";
 import { parseManualText, TOTAL_PAGES } from "./quran.js";
+import { toPhoto } from "./media.js";
 
 export const DEFAULTS = {
   maxReviews: 30,      // أقصى عدد صفحات في جلسة المراجعة
@@ -36,8 +37,9 @@ export function normalizeRecord(r) {
   if (!Array.isArray(rec.ayahs)) rec.ayahs = rec.text ? parseManualText(rec.text) : [];
   delete rec.text;
   if (!Array.isArray(rec.links)) rec.links = [];
-  if (!Array.isArray(rec.images)) rec.images = [];
-  if (!Array.isArray(rec.maps)) rec.maps = [];
+  // كل صورة: { src, url?, time? } — النسخ السابقة كانت نصاً فقط
+  rec.images = (Array.isArray(rec.images) ? rec.images : []).map(toPhoto).filter(Boolean);
+  rec.maps = (Array.isArray(rec.maps) ? rec.maps : []).map(toPhoto).filter(Boolean);
   rec.srs = { ...newCard(), ...(r.srs || {}) };
   if (!Array.isArray(rec.srs.history)) rec.srs.history = [];
   return rec;

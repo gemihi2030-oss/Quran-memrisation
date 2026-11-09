@@ -153,11 +153,49 @@ test("v1 backup records are upgraded on import", async () => {
   assert.deepEqual(r.srs, v1.srs);
   assert.deepEqual(r.links, ["الأميون"]);
   assert.deepEqual(r.maps, [], "v1 records get an empty mind-map list");
+  const withImgs = normalizeRecord({ page: 7, images: ["data:a"], maps: ["data:b", { src: "data:c", url: "https://youtu.be/x", time: "1:00" }], srs: {} });
+  assert.deepEqual(withImgs.images, [{ src: "data:a" }], "old string photos become objects");
+  assert.deepEqual(withImgs.maps[1], { src: "data:c", url: "https://youtu.be/x", time: "1:00" });
   const bare = normalizeRecord({ page: 5, srs: { due: "2026-11-09" } });
   assert.deepEqual(bare.ayahs, []);
   assert.deepEqual(bare.maps, []);
   assert.equal(bare.srs.ease, 2.5);
   assert.deepEqual(bare.srs.history, []);
+});
+
+test("photo sources: time parsing and video links", async () => {
+  const { parseTime, formatTime, safeUrl, platformOf, sourceLink, toPhoto } = await import("../js/media.js");
+  assert.equal(parseTime("12:35"), 755);
+  assert.equal(parseTime("١٢:٣٥"), 755);
+  assert.equal(parseTime("1:02:03"), 3723);
+  assert.equal(parseTime("755"), 755);
+  assert.equal(parseTime("12m35s"), 755);
+  assert.equal(parseTime("1h"), 3600);
+  assert.equal(parseTime(""), null);
+  assert.equal(parseTime("abc"), null);
+  assert.equal(formatTime(755), "12:35");
+  assert.equal(formatTime(3723), "1:02:03");
+  assert.equal(safeUrl("javascript:alert(1)"), "", "no script links");
+  assert.equal(safeUrl("youtu.be/abc"), "https://youtu.be/abc");
+  assert.equal(safeUrl("hello"), "");
+  assert.equal(platformOf("https://www.youtube.com/watch?v=x"), "يوتيوب");
+  assert.equal(platformOf("https://www.instagram.com/reel/x/"), "إنستغرام");
+  assert.equal(platformOf("https://fb.watch/x/"), "فيسبوك");
+  const yt = sourceLink("https://www.youtube.com/watch?v=abc123", "12:35");
+  assert.equal(new URL(yt.href).searchParams.get("t"), "755s");
+  assert.equal(new URL(yt.href).searchParams.get("v"), "abc123");
+  assert.equal(yt.time, "12:35");
+  assert.equal(new URL(sourceLink("youtu.be/abc123", "1:00").href).searchParams.get("t"), "60s");
+  const sh = new URL(sourceLink("https://youtube.com/shorts/XYZ", "5").href);
+  assert.equal(sh.pathname, "/watch");
+  assert.equal(sh.searchParams.get("v"), "XYZ");
+  const ig = sourceLink("https://www.instagram.com/reel/abc/", "0:45");
+  assert.equal(ig.href, "https://www.instagram.com/reel/abc/");
+  assert.equal(ig.time, "0:45");
+  assert.equal(ig.timeInLink, false);
+  assert.equal(sourceLink("", "1:00"), null);
+  assert.deepEqual(toPhoto("data:x"), { src: "data:x" });
+  assert.deepEqual(toPhoto({ src: "data:x", url: "u", time: "" }), { src: "data:x", url: "u" });
 });
 
 test("manual text parsing (v1 compatible)", () => {

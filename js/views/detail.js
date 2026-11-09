@@ -5,7 +5,7 @@ import { surahLabel, juzOfPage, hizbOfPage, rangeLabel, renderAyahs, arDigits, f
 import { level, relativeDay, durationLabel, isDue, todayStr, GRADE_LABELS } from "../srs.js";
 import { openEditor } from "./editor.js";
 import { startSession } from "./review.js";
-import { LEVEL_LABELS, allImages } from "./cards.js";
+import { LEVEL_LABELS, allImages, sourceButtonHTML } from "./cards.js";
 import { openGallery } from "./lightbox.js";
 
 const dlg = () => $("#detailDialog");
@@ -35,6 +35,7 @@ export function openDetail(p) {
 
       ${galleryHTML(imgs, "map", "🗺️ الخريطة الذهنية للوجه", "gallery big")}
       ${galleryHTML(imgs, "link", "🖼️ صور التربيط", "gallery")}
+      ${sourcesHTML(imgs)}
       ${rec.links.length ? `<h3>🔗 كلمات الربط</h3><div class="chips start">${rec.links.map(l => `<span class="chip">${esc(l)}</span>`).join("")}</div>` : ""}
       ${rec.notes ? `<h3>🧠 الصورة الذهنية</h3><p class="notes">${esc(rec.notes)}</p>` : ""}
       ${ayahKeys.length ? `<h3>🔑 مفاتيح الآيات</h3><ul class="keys-list">${ayahKeys
@@ -78,8 +79,17 @@ function galleryHTML(imgs, kind, title, cls) {
   return `<h3>${title}${list.length > 1 ? ` (${list.length})` : ""}</h3>
     <div class="${cls}">${list
       .map(im => `<button type="button" class="gimg" data-action="view-img" data-i="${im.i}">
-        <img src="${im.src}" alt="" loading="lazy">${im.a ? `<span>الآية ${arDigits(im.a)}</span>` : ""}</button>`)
+        <img src="${im.src}" alt="" loading="lazy">${im.a ? `<span>الآية ${arDigits(im.a)}</span>` : ""}${im.url ? `<i class="src-badge">▶️</i>` : ""}</button>`)
       .join("")}</div>`;
+}
+
+// روابط مصادر الصور (يوتيوب، إنستغرام…) مع الوقت داخل الفيديو
+function sourcesHTML(imgs) {
+  const list = imgs.filter(im => im.url || im.time);
+  if (!list.length) return "";
+  return `<h3>🔗 مصادر الصور</h3><ul class="src-list">${list
+    .map(im => `<li><span>${im.kind === "map" ? "🗺️ الخريطة الذهنية" : "🖼️ صورة تربيط"}</span>${sourceButtonHTML(im)}</li>`)
+    .join("")}</ul>`;
 }
 
 const captionOf = (im, p) =>
@@ -97,7 +107,7 @@ delegate(dlg(), {
     startSession({ pages: [pageNo], extra: !isDue(rec.srs) });
   },
   "view-img": el => {
-    const imgs = dlg()._imgs.map(im => ({ src: im.src, caption: captionOf(im, pageNo) }));
+    const imgs = dlg()._imgs.map(im => ({ src: im.src, url: im.url, time: im.time, caption: captionOf(im, pageNo) }));
     openGallery(imgs, +el.dataset.i);
   },
 });

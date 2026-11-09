@@ -1,5 +1,6 @@
 // عارض الصور بحجم الشاشة، مع التنقل بين الصور (أزرار، سحب بالإصبع، أسهم لوحة المفاتيح)
 import { $, esc } from "../util.js";
+import { sourceButtonHTML } from "./cards.js";
 
 const dlg = () => $("#imageDialog");
 let items = [];
@@ -7,7 +8,7 @@ let idx = 0;
 let onOpenPage = null;
 let touchX = null;
 
-// list: [{ src, caption, page }]
+// list: [{ src, caption, page?, url?, time? }]
 export function openGallery(list, start = 0, opts = {}) {
   if (!list.length) return;
   items = list;
@@ -28,7 +29,10 @@ function render() {
       <span class="lb-cap">${esc(it.caption || "")}${many ? ` <small>(${idx + 1} / ${items.length})</small>` : ""}</span>
       ${many ? `<button type="button" class="lb-btn" data-lb="next" ${idx === items.length - 1 ? "disabled" : ""}>التالية ←</button>` : ""}
     </div>
-    ${onOpenPage && it.page ? `<button type="button" class="btn small lb-open" data-lb="open">📖 فتح الصفحة ${it.page}</button>` : ""}`;
+    <div class="lb-actions">
+      ${sourceButtonHTML(it, "btn small lb-src")}
+      ${onOpenPage && it.page ? `<button type="button" class="btn small lb-open" data-lb="open">📖 فتح الصفحة ${it.page}</button>` : ""}
+    </div>`;
 }
 
 function go(step) {
@@ -46,6 +50,7 @@ d.addEventListener("click", e => {
     return;
   }
   const act = b.dataset.lb;
+  if (act === "src") return; // رابط المصدر يُفتح عادياً
   if (act === "close") d.close();
   else if (act === "next") go(1);
   else if (act === "prev") go(-1);

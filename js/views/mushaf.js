@@ -150,7 +150,7 @@ function mapItems() {
     .sort((a, b) => a.page - b.page);
   for (const r of recs) {
     for (const im of mapImages(r)) {
-      items.push({ src: im.src, page: r.page, surah: firstSurahOfPage(r.page), caption: `الصفحة ${r.page} · ${surahLabel(r.page)}` });
+      items.push({ src: im.src, url: im.url, time: im.time, page: r.page, surah: firstSurahOfPage(r.page), caption: `الصفحة ${r.page} · ${surahLabel(r.page)}` });
     }
   }
   return items;
@@ -177,7 +177,7 @@ function renderMaps() {
         open = true;
       }
       body += `<button type="button" class="map-tile" data-action="view-map" data-i="${i}">
-        <img src="${it.src}" alt="" loading="lazy"><span>ص ${it.page}</span></button>`;
+        <img src="${it.src}" alt="" loading="lazy"><span>ص ${it.page}</span>${it.url ? `<i class="src-badge">▶️</i>` : ""}</button>`;
     });
     if (open) body += `</div>`;
   }

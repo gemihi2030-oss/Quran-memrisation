@@ -6,6 +6,7 @@ import {
   firstWords, arDigits, parseManualText, ayahsToText, SURAH_NAMES,
 } from "../quran.js";
 import { newCard, todayStr } from "../srs.js";
+import { parseTime, formatTime, safeUrl, sourceLink } from "../media.js";
 import { refresh, current } from "../router.js";
 import { openDetail } from "./detail.js";
 
@@ -53,12 +54,12 @@ function render() {
         <h3>🔑 ما ساعدك على حفظ هذه الصفحة</h3>
         <div class="field img-field map-field">
           <div class="img-head"><b>🗺️ الخريطة الذهنية للوجه</b><small class="muted">صورة تلخّص الصفحة كاملة</small></div>
-          <div class="images edit" id="edMaps">${imagesHTML("maps")}</div>
+          <div class="photos" id="edMaps">${imagesHTML("maps")}</div>
           <label class="btn add-img">📷 إضافة خريطة ذهنية<input type="file" accept="image/*" multiple hidden id="edMapInput"></label>
         </div>
         <div class="field img-field">
           <div class="img-head"><b>🖼️ صور التربيط</b><small class="muted">صور تربط بها الآيات ببعضها</small></div>
-          <div class="images edit" id="edImages">${imagesHTML("images")}</div>
+          <div class="photos" id="edImages">${imagesHTML("images")}</div>
           <label class="btn add-img">📷 إضافة صورة تربيط<input type="file" accept="image/*" multiple hidden id="edImageInput"></label>
         </div>
         <label class="field">🔗 كلمات الربط <small class="muted">(كلمة أو عبارة في كل سطر — مثلاً تسلسل مواضيع الصفحة)</small>
@@ -140,15 +141,48 @@ function ayahListHTML() {
   return html;
 }
 
-// kind: "maps" (الخريطة الذهنية) أو "images" (صور التربيط)
+// kind: "maps" (الخريطة الذهنية) أو "images" (صور التربيط) — كل صورة { src, url?, time? }
 function imagesHTML(kind) {
   const toMap = kind === "images";
   return draft[kind]
-    .map((src, i) => `<div class="img-wrap"><img src="${src}" alt="">
-      <button type="button" class="rm" data-action="rm-img" data-kind="${kind}" data-i="${i}" aria-label="حذف">✕</button>
-      <button type="button" class="mv" data-action="mv-img" data-kind="${kind}" data-i="${i}">⇄ ${toMap ? "إلى الخريطة الذهنية" : "إلى صور التربيط"}</button>
+    .map((p, i) => `<div class="photo-row">
+      <div class="img-wrap"><img src="${p.src}" alt="">
+        <button type="button" class="rm" data-action="rm-img" data-kind="${kind}" data-i="${i}" aria-label="حذف">✕</button>
+      </div>
+      <div class="photo-fields">
+        <input type="url" inputmode="url" data-field="p-url" data-kind="${kind}" data-i="${i}" value="${esc(p.url)}"
+          placeholder="🔗 رابط المصدر (يوتيوب، إنستغرام، فيسبوك…)">
+        <input type="text" data-field="p-time" data-kind="${kind}" data-i="${i}" value="${esc(p.time)}"
+          placeholder="⏱️ الوقت في الفيديو، مثل 12:35">
+        <small class="src-hint" data-hint="${kind}-${i}">${sourceHint(p)}</small>
+        <button type="button" class="link-btn mv-btn" data-action="mv-img" data-kind="${kind}" data-i="${i}">⇄ نقل ${toMap ? "إلى الخريطة الذهنية" : "إلى صور التربيط"}</button>
+      </div>
     </div>`)
     .join("");
+}
+
+// ما الذي سيفتحه الرابط؟ (يظهر تحت الحقلين)
+function sourceHint(p) {
+  const url = (p.url || "").trim();
+  const time = (p.time || "").trim();
+  if (!url && !time) return "";
+  if (time && parseTime(time) === null) return `<span class="warn">⚠️ اكتب الوقت هكذا: 12:35 أو 1:02:03</span>`;
+  if (!url) return `⏱️ ${formatTime(parseTime(time))}`;
+  const link = sourceLink(url, time);
+  if (!link) return `<span class="warn">⚠️ الرابط غير صحيح — انسخه كاملاً من التطبيق (زر «مشاركة» ← «نسخ الرابط»)</span>`;
+  if (link.time && link.timeInLink) return `✓ ${link.platform} — سيفتح الفيديو مباشرة عند ${link.time}`;
+  if (link.time) return `✓ ${link.platform} — الوقت ${link.time} سيظهر بجانب الرابط`;
+  return `✓ ${link.platform}`;
+}
+
+// تنظيف الحقول قبل الحفظ
+function cleanPhoto(p) {
+  const o = { src: p.src };
+  const url = (p.url || "").trim();
+  const time = (p.time || "").trim();
+  if (url) o.url = safeUrl(url) || url;
+  if (time) o.time = parseTime(time) === null ? time : formatTime(parseTime(time));
+  return o;
 }
 
 function renderImages() {
@@ -216,8 +250,8 @@ async function save() {
     cue: (draft.cue || "").trim() || firstWords(draft.ayahs[0]?.text, 5),
     links: draft.links,
     notes: (draft.notes || "").trim(),
-    images: draft.images,
-    maps: draft.maps,
+    images: draft.images.map(cleanPhoto),
+    maps: draft.maps.map(cleanPhoto),
     createdAt: existing?.createdAt || new Date().toISOString(),
     srs: existing?.srs || newCard(todayStr(), firstReview),
   };
@@ -335,7 +369,12 @@ d.addEventListener("input", e => {
   } else if (t.id === "edCue") draft.cue = t.value;
   else if (t.id === "edLinks") draft.links = lines(t.value);
   else if (t.id === "edNotes") draft.notes = t.value;
-  else if (t.dataset.field === "hook" || t.dataset.field === "note") {
+  else if (t.dataset.field === "p-url" || t.dataset.field === "p-time") {
+    const p = draft[t.dataset.kind][+t.dataset.i];
+    p[t.dataset.field === "p-url" ? "url" : "time"] = t.value;
+    const hint = dlg().querySelector(`[data-hint="${t.dataset.kind}-${t.dataset.i}"]`);
+    if (hint) hint.innerHTML = sourceHint(p);
+  } else if (t.dataset.field === "hook" || t.dataset.field === "note") {
     draft.ayahs[+t.dataset.i][t.dataset.field] = t.value;
     const row = t.closest(".ayah-row");
     const btn = row.querySelector(".key-toggle");
@@ -349,7 +388,7 @@ d.addEventListener("change", async e => {
   const t = e.target;
   if (t.id === "edImageInput" || t.id === "edMapInput") {
     const kind = t.id === "edMapInput" ? "maps" : "images";
-    await addImages(t.files, src => draft[kind].push(src));
+    await addImages(t.files, src => draft[kind].push({ src }));
     t.value = "";
     renderImages();
   } else if (t.dataset.field === "ayah-image" && t.files[0]) {
