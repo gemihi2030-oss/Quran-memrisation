@@ -13,7 +13,22 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
-  <script type="module" src="js/main.js"></script>
+  <script>
+    // إصلاح ذاتي: إن فشل تحميل التطبيق بسبب اختلاط ملفات نسخة قديمة (ذاكرة المتصفح المؤقتة بعد تحديث)،
+    // نجلب الملفات من جديد ونعيد التحميل مرة واحدة
+    window.__repairApp = function () {
+      try { if (sessionStorage.getItem("qm-repaired")) return; sessionStorage.setItem("qm-repaired", "1"); } catch (e) { return; }
+      var files = ["index.html", "css/style.css", "manifest.webmanifest", "js/main.js", "js/util.js", "js/db.js", "js/srs.js",
+        "js/state.js", "js/router.js", "js/quran.js", "js/quran-meta.js", "js/views/home.js", "js/views/review.js",
+        "js/views/mushaf.js", "js/views/editor.js", "js/views/detail.js", "js/views/range.js", "js/views/settings.js"];
+      Promise.all(files.map(function (f) { return fetch(f, { cache: "reload" }).catch(function () {}); }))
+        .then(function () { location.reload(); });
+    };
+    window.addEventListener("error", function (e) {
+      if (e && e.filename && e.filename.indexOf("/js/") !== -1) window.__repairApp();
+    });
+  </script>
+  <script type="module" src="js/main.js" onerror="__repairApp()"></script>
 </head>
 <body>
   <header class="topbar">

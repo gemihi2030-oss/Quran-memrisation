@@ -1,5 +1,5 @@
 // عامل الخدمة: يجعل التطبيق يعمل دون إنترنت
-const CACHE = "quran-mem-v2.0.0";
+const CACHE = "quran-mem-v2.0.1";
 const ASSETS = [
   "./", "index.html", "css/style.css", "manifest.webmanifest",
   "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png",
@@ -10,7 +10,12 @@ const ASSETS = [
 ];
 
 self.addEventListener("install", e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  // cache: "reload" يتجاوز ذاكرة المتصفح المؤقتة، حتى لا تُخزَّن ملفات من نسخة قديمة مع ملفات النسخة الجديدة
+  e.waitUntil(
+    caches.open(CACHE)
+      .then(c => c.addAll(ASSETS.map(u => new Request(u, { cache: "reload" }))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener("activate", e => {
@@ -28,8 +33,10 @@ self.addEventListener("fetch", e => {
   if (e.request.method !== "GET" || url.hostname === "api.alquran.cloud") return;
   const cacheable = url.origin === location.origin || url.hostname.endsWith("gstatic.com") || url.hostname.endsWith("googleapis.com");
   if (!cacheable) return;
+  // ملفات التطبيق: نتحقق دائماً من الخادم (no-cache) فلا تختلط ملفات نسختين بعد أي تحديث
+  const sameOrigin = url.origin === location.origin;
   e.respondWith(
-    fetch(e.request)
+    fetch(sameOrigin ? new Request(e.request, { cache: "no-cache" }) : e.request)
       .then(res => {
         if (res.ok) {
           const copy = res.clone();

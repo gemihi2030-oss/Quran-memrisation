@@ -55,4 +55,8 @@ async function init() {
   }
 }
 
-init();
+init().then(() => {
+  try {
+    sessionStorage.removeItem("qm-repaired"); // نجح التحميل: نسمح بإصلاح ذاتي جديد مستقبلاً
+  } catch {}
+});
