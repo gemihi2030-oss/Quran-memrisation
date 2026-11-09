@@ -11,6 +11,7 @@ import { show, current, updateChrome } from "../router.js";
 import { openEditor } from "./editor.js";
 import { openGallery } from "./lightbox.js";
 import { mapImages, linkImages } from "./cards.js";
+import { tadabburListHTML, motivationItemHTML, randomMotivation, viewTadabburImage, viewMotivation } from "./notes.js";
 
 const root = () => $("#view-review");
 let session = null;
@@ -269,6 +270,8 @@ function answerHTML() {
     ${rec.notes ? `<h3>🧠 الصورة الذهنية</h3><p class="notes">${esc(rec.notes)}</p>` : ""}
     ${maps.length ? `<h3>🗺️ الخريطة الذهنية</h3>${photosHTML(maps, "images maps")}` : ""}
     ${imgs.length ? `<h3>🖼️ صور التربيط</h3>${photosHTML(imgs, "images")}` : ""}
+    ${rec.tadabbur?.length ? `<details class="text-toggle tad-review"><summary>💡 تدبر هذه الصفحة (${rec.tadabbur.length})</summary>
+      <div class="tad-list">${tadabburListHTML(rec)}</div></details>` : ""}
     ${nxt?.cue ? `<p class="next-link">🔗 <b>اربطها بما بعدها:</b> الصفحة ${nxt.page} تبدأ بـ <span class="quran-inline">${esc(nxt.cue)}</span></p>` : ""}
     <h3 class="center">كيف كان استرجاعك؟</h3>
     <p class="suggest" id="suggestBox">${suggestText()}</p>
@@ -373,6 +376,7 @@ function renderDone() {
   const forgot = first.filter(r => r.grade === AGAIN).length;
   const errors = first.reduce((s, r) => s + r.errors, 0);
   const remaining = dueList().length;
+  const motiv = first.length ? randomMotivation() : null;
   root().innerHTML = `
     <div class="card center done">
       <div class="big-emoji">${first.length ? "🌟" : "👋"}</div>
@@ -385,6 +389,7 @@ function renderDone() {
       <div class="chips">${first.map(r => `<span class="chip grade-chip g${r.grade}" title="${GRADE_LABELS[r.grade]}">${r.page}</span>`).join("")}</div>` : ""}
       ${remaining ? `<p class="muted">ما زالت ${remaining} صفحة مستحقة.</p><button class="btn primary big" data-action="start">متابعة المراجعة</button>` : ""}
       <p class="dua">«اللَّهُمَّ اجْعَلِ القُرْآنَ رَبِيعَ قُلُوبِنَا، وَنُورَ صُدُورِنَا»</p>
+      ${motiv ? `<div class="done-motiv"><h3>💚 تذكير يحفّزك</h3>${motivationItemHTML(motiv)}</div>` : ""}
       <button class="btn big" data-action="home">🏠 الرئيسية</button>
     </div>`;
   session = null;
@@ -437,6 +442,9 @@ delegate(root(), {
     session.cur.showImages = true;
     renderCard();
   },
+  expand: el => el.classList.toggle("clamp"),
+  "view-note-img": el => viewTadabburImage(+el.dataset.page, el.dataset.id),
+  "view-motivation": el => viewMotivation(el.dataset.id),
   "show-maps": () => {
     session.cur.showMaps = true;
     renderCard();

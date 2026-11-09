@@ -7,9 +7,20 @@ import { openEditor } from "./editor.js";
 import { startSession } from "./review.js";
 import { LEVEL_LABELS, allImages, sourceButtonHTML } from "./cards.js";
 import { openGallery } from "./lightbox.js";
+import { openNoteEditor, tadabburListHTML, viewTadabburImage } from "./notes.js";
 
 const dlg = () => $("#detailDialog");
 let pageNo = 0;
+
+// بعد إضافة/تعديل تدبر: نعيد رسم البطاقة إن كانت مفتوحة (مع الحفاظ على موضع التمرير)
+function reopen() {
+  if (!dlg().open) return;
+  const body = dlg().querySelector(".sheet-body");
+  const y = body?.scrollTop || 0;
+  openDetail(pageNo);
+  const nb = dlg().querySelector(".sheet-body");
+  if (nb) nb.scrollTop = y;
+}
 
 export function openDetail(p) {
   const rec = pages.get(p);
@@ -46,6 +57,14 @@ export function openDetail(p) {
         </li>`)
         .join("")}</ul>` : ""}
       ${hasAnyKey ? "" : `<div class="notice">لم تضف لهذه الصفحة صوراً ولا كلمات ربط بعد. <button type="button" class="link-btn" data-action="edit">أضفها الآن</button></div>`}
+
+      <div class="row between tad-title">
+        <h3>💡 تدبر الآيات${rec.tadabbur.length ? ` (${rec.tadabbur.length})` : ""}</h3>
+        <button type="button" class="btn small" data-action="add-tadabbur">＋ إضافة تدبر</button>
+      </div>
+      ${rec.tadabbur.length
+        ? `<div class="tad-list">${tadabburListHTML(rec, { editable: true })}</div>`
+        : `<p class="muted small">وجدت منشوراً أو كتاباً أو درساً يتدبر آية من هذه الصفحة؟ أضفه هنا ليبقى مع الصفحة.</p>`}
 
       ${rec.ayahs.length ? `<details class="text-toggle"><summary>📖 عرض نص الصفحة</summary><div class="quran">${renderAyahs(rec.ayahs, { showMiss: true })}</div></details>` : ""}
 
@@ -113,6 +132,10 @@ delegate(dlg(), {
     const rec = pages.get(pageNo);
     startSession({ pages: [pageNo], extra: !isDue(rec.srs) });
   },
+  "add-tadabbur": () => openNoteEditor({ kind: "tadabbur", page: pageNo, onSaved: reopen }),
+  "edit-tadabbur": el => openNoteEditor({ kind: "tadabbur", page: pageNo, id: el.dataset.id, onSaved: reopen }),
+  "view-note-img": el => viewTadabburImage(pageNo, el.dataset.id),
+  expand: el => el.classList.toggle("clamp"),
   "view-img": el => {
     const imgs = dlg()._imgs.map(im => ({ ...im, caption: captionOf(im, pageNo) }));
     openGallery(imgs, +el.dataset.i);

@@ -1,6 +1,7 @@
 // الشاشة الرئيسية: الإحصائيات، المراجعات القادمة، الأجزاء، الصفحات الضعيفة
 import { $, esc, delegate } from "../util.js";
-import { pages, dueList, streak, retention, todayCount, weakPages } from "../state.js";
+import { pages, dueList, streak, retention, todayCount, weakPages, motivations } from "../state.js";
+import { motivationOfDay, motivationItemHTML, openNoteEditor, openMotivationList, viewMotivation } from "./notes.js";
 import { Store } from "../db.js";
 import { TOTAL_PAGES, juzRange, surahLabel, firstSurahOfPage } from "../quran.js";
 import { todayStr, addDays, daysBetween, parseDate, relativeDay } from "../srs.js";
@@ -40,6 +41,7 @@ export function renderHome() {
            <button class="btn primary big" data-action="practice">💪 تدرّب الآن على صفحاتي</button>`}
       <button class="btn ghost" data-action="add">＋ حفظت صفحة جديدة</button>
     </div>
+    ${motivationHTML()}
     ${currentSurahHTML()}
     ${recentHTML(t)}
     ${backupReminder(total)}
@@ -65,6 +67,7 @@ function renderWelcome() {
       <button class="btn primary big" data-action="add">＋ سجّل أول صفحة حفظتها</button>
       <button class="btn ghost" data-action="range">📚 أحفظ صفحات من قبل؟ سجّلها دفعة واحدة (مثلاً جزء عمّ)</button>
     </div>
+    ${motivationHTML()}
     ${tipsHTML(true)}
   `;
 }
@@ -72,6 +75,29 @@ function renderWelcome() {
 function nextDueLabel(t) {
   const next = [...pages.values()].map(p => p.srs.due).filter(d => d > t).sort()[0];
   return next ? relativeDay(next, t) : "—";
+}
+
+// 💚 تحفيز اليوم (يتغير كل يوم، و↻ لعرض غيره)
+function motivationHTML(step = 0) {
+  const m = motivationOfDay(step);
+  if (!m) {
+    return `<div class="card motiv-card empty">
+      <h2>💚 تحفيز</h2>
+      <p class="muted small">احفظ هنا ما يحفّزك على الحفظ والمراجعة: قصة، حديث، مقولة، صورة… سيظهر لك واحد كل يوم.</p>
+      <button class="btn" data-action="add-motivation">＋ إضافة تحفيز</button>
+    </div>`;
+  }
+  return `<div class="card motiv-card" id="motivCard">
+    <div class="row between">
+      <h2>💚 تحفيز اليوم</h2>
+      <div class="row gap-s">
+        ${motivations.length > 1 ? `<button class="icon-btn" data-action="next-motivation" aria-label="التالي" title="التالي">↻</button>` : ""}
+        <button class="icon-btn" data-action="add-motivation" aria-label="إضافة" title="إضافة">＋</button>
+      </div>
+    </div>
+    ${motivationItemHTML(m)}
+    <button class="link-btn" data-action="all-motivation">عرض الكل (${motivations.length}) ←</button>
+  </div>`;
 }
 
 // السورة التي تحفظها الآن (سورة آخر صفحة سجّلتها بنفسك) وتقدمك فيها
@@ -194,6 +220,13 @@ delegate(root(), {
   practice: () => startSession({ extra: true }),
   "all-pages": () => showPagesList(),
   "add-page": el => openEditor(+el.dataset.page),
+  "add-motivation": () => openNoteEditor({ kind: "motivation" }),
+  "next-motivation": () => {
+    $("#motivCard").outerHTML = motivationHTML(1);
+  },
+  "all-motivation": () => openMotivationList(),
+  "view-motivation": el => viewMotivation(el.dataset.id),
+  expand: el => el.classList.toggle("clamp"),
   "surah-pages": el => showPagesList({ surah: +el.dataset.s }),
   "surah-maps": el => showPagesList({ surah: +el.dataset.s, view: "maps" }),
   "open-page": el => openDetail(+el.dataset.page),

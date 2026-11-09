@@ -40,19 +40,39 @@ export function normalizeRecord(r) {
   // كل صورة: { src, url?, time? } — النسخ السابقة كانت نصاً فقط
   rec.images = (Array.isArray(rec.images) ? rec.images : []).map(toPhoto).filter(Boolean);
   rec.maps = (Array.isArray(rec.maps) ? rec.maps : []).map(toPhoto).filter(Boolean);
+  // تدبر الآيات: [{ id, s?, a?, text, img?, source?, time?, createdAt }] (a فارغ = الصفحة كاملة)
+  rec.tadabbur = Array.isArray(rec.tadabbur) ? rec.tadabbur.filter(t => t && t.id) : [];
   rec.srs = { ...newCard(), ...(r.srs || {}) };
   if (!Array.isArray(rec.srs.history)) rec.srs.history = [];
   return rec;
 }
 
+// ---------- التحفيز ----------
+// قائمة واحدة لكل التطبيق: [{ id, text, img?, source?, time?, createdAt }]
+// تُحفظ في نفس مخزن الصفحات بمفتاح خاص، حتى لا نحتاج ترقية قاعدة البيانات
+// (الترقية قد تتعطل إن بقيت نسخة قديمة من التطبيق مفتوحة في تبويب آخر)
+export const MOTIVATION_KEY = "__motivation";
+export const motivations = [];
+
+export async function saveMotivations() {
+  await DB.pages.put({ page: MOTIVATION_KEY, items: motivations });
+}
+
 export async function loadPages() {
   const all = await DB.pages.all();
   pages.clear();
+  motivations.length = 0;
   for (const r of all) {
+    if (r.page === MOTIVATION_KEY) {
+      if (Array.isArray(r.items)) motivations.push(...r.items.filter(m => m && m.id));
+      continue;
+    }
     const rec = normalizeRecord(r);
     if (rec.page >= 1 && rec.page <= TOTAL_PAGES) pages.set(rec.page, rec);
   }
 }
+
+export const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
 export async function savePage(rec) {
   rec.updatedAt = new Date().toISOString();

@@ -49,7 +49,8 @@ export function pageCardHTML(rec, t = todayStr()) {
     ? `<img src="${imgs[0].src}" alt="" loading="lazy">${imgs.length > 1 ? `<span class="more">+${imgs.length - 1}</span>` : ""}${maps.length ? `<span class="kind">🗺️</span>` : ""}`
     : `<span class="ph">${rec.page}</span>`;
   const empty = !imgs.length && !words.length && !rec.notes;
-  const counts = [maps.length ? `🗺️ ${maps.length}` : "", links.length ? `🖼️ ${links.length}` : ""].filter(Boolean).join(" · ");
+  const tad = (rec.tadabbur || []).length;
+  const counts = [maps.length ? `🗺️ ${maps.length}` : "", links.length ? `🖼️ ${links.length}` : "", tad ? `💡 ${tad}` : ""].filter(Boolean).join(" · ");
   return `<article class="pcard" data-action="open-page" data-page="${rec.page}" role="button" tabindex="0">
     <div class="pcard-thumb${imgs.length ? "" : " empty"}">${thumb}</div>
     <div class="pcard-body">

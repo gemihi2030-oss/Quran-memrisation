@@ -1,6 +1,6 @@
 // الإعدادات: المراجعة، العرض، العمل دون إنترنت، النسخ الاحتياطي
 import { $, delegate, toast, downloadFile } from "../util.js";
-import { settings, saveSettings, pages, loadPages, normalizeRecord, savePages, reviewLog, DEFAULTS } from "../state.js";
+import { settings, saveSettings, pages, loadPages, normalizeRecord, savePages, reviewLog, DEFAULTS, motivations, saveMotivations } from "../state.js";
 import { DB, Store } from "../db.js";
 import { cachedTextCount, downloadWholeQuran, TOTAL_PAGES } from "../quran.js";
 import { todayStr } from "../srs.js";
@@ -84,6 +84,7 @@ async function exportData() {
     settings,
     reviewLog: reviewLog(),
     pages: [...pages.values()],
+    motivation: motivations,
   };
   downloadFile(`quran-memorisation-${todayStr()}.json`, JSON.stringify(data));
   Store.set("lastExport", todayStr());
@@ -101,8 +102,14 @@ async function importData(file) {
   }
   const valid = data.pages.filter(p => p && +p.page >= 1 && +p.page <= TOTAL_PAGES && p.srs);
   const clash = valid.filter(p => pages.has(+p.page)).length;
-  if (!confirm(`استيراد ${valid.length} صفحة؟${clash ? `\n${clash} منها موجودة مسبقاً وسيتم استبدالها.` : ""}`)) return;
+  const incomingMotiv = Array.isArray(data.motivation) ? data.motivation.filter(m => m && m.id) : [];
+  const newMotiv = incomingMotiv.filter(m => !motivations.some(x => x.id === m.id));
+  if (!confirm(`استيراد ${valid.length} صفحة${newMotiv.length ? ` و${newMotiv.length} تحفيز` : ""}؟${clash ? `\n${clash} صفحة منها موجودة مسبقاً وسيتم استبدالها.` : ""}`)) return;
   await savePages(valid.map(normalizeRecord));
+  if (newMotiv.length) {
+    motivations.push(...newMotiv);
+    await saveMotivations();
+  }
   if (data.reviewLog && typeof data.reviewLog === "object") {
     const merged = { ...data.reviewLog };
     for (const [d, n] of Object.entries(reviewLog())) merged[d] = Math.max(n, merged[d] || 0);
@@ -139,9 +146,10 @@ delegate(root(), {
   wipe: async () => {
     if (!confirm("سيتم حذف كل الصفحات ومفاتيحها وسجل المراجعة نهائياً من هذا الجهاز. هل صدّرت نسخة احتياطية؟")) return;
     if (!confirm("تأكيد نهائي: حذف كل شيء؟")) return;
-    await DB.pages.clear();
+    await DB.pages.clear(); // يحذف أيضاً قائمة التحفيز (محفوظة في نفس المخزن)
     Store.set("reviewLog", {});
     pages.clear();
+    motivations.length = 0;
     toast("تم حذف البيانات");
     show("home");
   },

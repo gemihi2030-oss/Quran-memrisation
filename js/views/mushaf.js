@@ -72,6 +72,7 @@ const LIST_FILTERS = [
   ["maps", "🗺️ فيها خريطة ذهنية", r => mapImages(r).length > 0],
   ["images", "🖼️ فيها صور تربيط", r => linkImages(r).length > 0],
   ["links", "🔗 كلمات ربط", r => allLinks(r).length > 0],
+  ["tadabbur", "💡 فيها تدبر", r => (r.tadabbur || []).length > 0],
   ["due", "⏰ المستحقة", r => isDue(r.srs)],
 ];
 
@@ -79,7 +80,8 @@ function matchQuery(r, q) {
   if (!q) return true;
   if (/^\d+$/.test(q)) return r.page === +q;
   const photoNotes = allImages(r).map(p => p.note || "");
-  const hay = normalizeArabic([surahLabel(r.page), ...allLinks(r), r.notes, ...r.ayahs.map(x => x.note || ""), ...photoNotes].join(" "));
+  const tadabbur = (r.tadabbur || []).map(t => `${t.text || ""} ${t.source || ""}`);
+  const hay = normalizeArabic([surahLabel(r.page), ...allLinks(r), r.notes, ...r.ayahs.map(x => x.note || ""), ...photoNotes, ...tadabbur].join(" "));
   return hay.includes(normalizeArabic(q));
 }
 

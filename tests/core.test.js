@@ -159,6 +159,9 @@ test("v1 backup records are upgraded on import", async () => {
   const bare = normalizeRecord({ page: 5, srs: { due: "2026-11-09" } });
   assert.deepEqual(bare.ayahs, []);
   assert.deepEqual(bare.maps, []);
+  assert.deepEqual(bare.tadabbur, []);
+  const tad = normalizeRecord({ page: 12, tadabbur: [{ id: "x1", a: 79, text: "فويل…" }, null, { text: "no id" }], srs: {} });
+  assert.deepEqual(tad.tadabbur, [{ id: "x1", a: 79, text: "فويل…" }], "keeps valid reflections only");
   assert.equal(bare.srs.ease, 2.5);
   assert.deepEqual(bare.srs.history, []);
 });
