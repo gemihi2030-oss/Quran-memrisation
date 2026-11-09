@@ -6,9 +6,9 @@ import { level, relativeDay, durationLabel, isDue, todayStr, GRADE_LABELS } from
 import { openEditor } from "./editor.js";
 import { startSession } from "./review.js";
 import { LEVEL_LABELS, allImages } from "./cards.js";
+import { openGallery } from "./lightbox.js";
 
 const dlg = () => $("#detailDialog");
-const viewer = () => $("#imageDialog");
 let pageNo = 0;
 
 export function openDetail(p) {
@@ -33,11 +33,8 @@ export function openDetail(p) {
       <p class="muted">${esc(surahLabel(p))} · الجزء ${juzOfPage(p)} · الحزب ${hizbOfPage(p)}<br><small>${rangeLabel(p)}</small></p>
       <p class="next-review">⏰ المراجعة القادمة: <b>${relativeDay(s.due, t)}</b></p>
 
-      ${imgs.length ? `<h3>🖼️ صوري (${imgs.length})</h3>
-        <div class="gallery">${imgs
-          .map(im => `<button type="button" class="gimg" data-action="view-img" data-src-i="${imgs.indexOf(im)}">
-            <img src="${im.src}" alt="" loading="lazy">${im.a ? `<span>الآية ${arDigits(im.a)}</span>` : ""}</button>`)
-          .join("")}</div>` : ""}
+      ${galleryHTML(imgs, "map", "🗺️ الخريطة الذهنية للوجه", "gallery big")}
+      ${galleryHTML(imgs, "link", "🖼️ صور التربيط", "gallery")}
       ${rec.links.length ? `<h3>🔗 كلمات الربط</h3><div class="chips start">${rec.links.map(l => `<span class="chip">${esc(l)}</span>`).join("")}</div>` : ""}
       ${rec.notes ? `<h3>🧠 الصورة الذهنية</h3><p class="notes">${esc(rec.notes)}</p>` : ""}
       ${ayahKeys.length ? `<h3>🔑 مفاتيح الآيات</h3><ul class="keys-list">${ayahKeys
@@ -74,12 +71,19 @@ export function openDetail(p) {
   dlg().querySelector(".sheet-body").scrollTop = 0;
 }
 
-// عارض الصورة بحجم الشاشة
-export function openImage(src, caption = "") {
-  viewer().innerHTML = `<button type="button" class="icon-btn lb-close" aria-label="إغلاق">✕</button>
-    <img src="${src}" alt="">${caption ? `<p>${esc(caption)}</p>` : ""}`;
-  viewer().showModal();
+// معرض نوع واحد من الصور (data-i = موضعها في قائمة كل الصور، ليتنقل العارض بينها كلها)
+function galleryHTML(imgs, kind, title, cls) {
+  const list = imgs.map((im, i) => ({ ...im, i })).filter(im => im.kind === kind);
+  if (!list.length) return "";
+  return `<h3>${title}${list.length > 1 ? ` (${list.length})` : ""}</h3>
+    <div class="${cls}">${list
+      .map(im => `<button type="button" class="gimg" data-action="view-img" data-i="${im.i}">
+        <img src="${im.src}" alt="" loading="lazy">${im.a ? `<span>الآية ${arDigits(im.a)}</span>` : ""}</button>`)
+      .join("")}</div>`;
 }
+
+const captionOf = (im, p) =>
+  `الصفحة ${p} · ${im.kind === "map" ? "الخريطة الذهنية" : im.a ? `صورة تربيط · الآية ${im.a}` : "صورة تربيط"}`;
 
 delegate(dlg(), {
   close: () => dlg().close(),
@@ -93,9 +97,7 @@ delegate(dlg(), {
     startSession({ pages: [pageNo], extra: !isDue(rec.srs) });
   },
   "view-img": el => {
-    const im = dlg()._imgs[+el.dataset.srcI];
-    if (im) openImage(im.src, im.a ? `الصفحة ${pageNo} · الآية ${im.a}` : `الصفحة ${pageNo}`);
+    const imgs = dlg()._imgs.map(im => ({ src: im.src, caption: captionOf(im, pageNo) }));
+    openGallery(imgs, +el.dataset.i);
   },
 });
-
-viewer().addEventListener("click", () => viewer().close());

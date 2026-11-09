@@ -30,12 +30,14 @@ export const pages = new Map(); // رقم الصفحة -> السجل
 
 // يحوّل سجلات النسخة الأولى (نص كامل) إلى الشكل الجديد (آيات مع مفاتيح لكل آية)
 export function normalizeRecord(r) {
-  const rec = { cue: "", links: [], notes: "", images: [], ...r };
+  // images = صور التربيط · maps = صور الخريطة الذهنية للوجه
+  const rec = { cue: "", links: [], notes: "", images: [], maps: [], ...r };
   rec.page = +rec.page;
   if (!Array.isArray(rec.ayahs)) rec.ayahs = rec.text ? parseManualText(rec.text) : [];
   delete rec.text;
   if (!Array.isArray(rec.links)) rec.links = [];
   if (!Array.isArray(rec.images)) rec.images = [];
+  if (!Array.isArray(rec.maps)) rec.maps = [];
   rec.srs = { ...newCard(), ...(r.srs || {}) };
   if (!Array.isArray(rec.srs.history)) rec.srs.history = [];
   return rec;

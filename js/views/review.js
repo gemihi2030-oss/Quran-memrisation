@@ -9,6 +9,7 @@ import { renderAyahs, getPageAyahs, surahLabel, juzOfPage, firstWords, lastWords
 import { applyGrade, nextState, durationLabel, todayStr, GRADE_LABELS, AGAIN, HARD, GOOD, EASY } from "../srs.js";
 import { show, current, updateChrome } from "../router.js";
 import { openEditor } from "./editor.js";
+import { openGallery } from "./lightbox.js";
 
 const root = () => $("#view-review");
 let session = null;
@@ -156,6 +157,7 @@ function recallHTML() {
   const hasAyahs = rec.ayahs.length > 0;
   const hasHookAyahs = rec.ayahs.some(x => x.hook || x.img || x.note);
   const imgs = [...rec.images, ...rec.ayahs.filter(x => x.img).map(x => x.img)];
+  const maps = rec.maps || [];
 
   let cueBlock;
   if (cur.showCue && rec.cue) cueBlock = `<div class="cue"><span class="quran-inline">${esc(rec.cue)}</span> …</div>`;
@@ -165,7 +167,8 @@ function recallHTML() {
   const hintBtns = [];
   if (cur.prevEnd && !cur.showPrev) hintBtns.push(`<button class="btn small" data-action="show-prev">↩️ نهاية الصفحة السابقة</button>`);
   if (rec.links.length && cur.linksShown < rec.links.length) hintBtns.push(`<button class="btn small" data-action="hint-link">💡 كلمة ربط (${cur.linksShown}/${rec.links.length})</button>`);
-  if (imgs.length && !cur.showImages) hintBtns.push(`<button class="btn small" data-action="show-images">🖼️ صوري (${imgs.length})</button>`);
+  if (maps.length && !cur.showMaps) hintBtns.push(`<button class="btn small" data-action="show-maps">🗺️ الخريطة الذهنية</button>`);
+  if (imgs.length && !cur.showImages) hintBtns.push(`<button class="btn small" data-action="show-images">🖼️ صور التربيط (${imgs.length})</button>`);
   if (rec.notes && !cur.showNotes) hintBtns.push(`<button class="btn small" data-action="show-notes">🧠 الصورة الذهنية</button>`);
 
   return `
@@ -176,7 +179,8 @@ function recallHTML() {
       ${cueBlock}
       ${cur.linksShown ? `<div class="chips">${rec.links.slice(0, cur.linksShown).map(l => `<span class="chip">${esc(l)}</span>`).join("")}</div>` : ""}
       ${cur.showNotes ? `<p class="notes">${esc(rec.notes)}</p>` : ""}
-      ${cur.showImages ? `<div class="images">${imgs.map(src => `<img src="${src}" alt="صورة مساعدة">`).join("")}</div>` : ""}
+      ${cur.showMaps ? `<div class="images maps">${maps.map(src => `<img src="${src}" alt="الخريطة الذهنية" data-action="zoom">`).join("")}</div>` : ""}
+      ${cur.showImages ? `<div class="images">${imgs.map(src => `<img src="${src}" alt="صورة تربيط" data-action="zoom">`).join("")}</div>` : ""}
     </div>
     ${hintBtns.length ? `<div class="row wrap center-row">${hintBtns.join("")}</div>` : ""}
     <button class="btn primary big" data-action="reveal">📖 سمّعت — أظهر الصفحة</button>
@@ -248,6 +252,7 @@ function answerHTML() {
   const { rec, marks } = cur;
   const nxt = pages.get(rec.page + 1);
   const imgs = [...rec.images];
+  const maps = rec.maps || [];
   const gradeBtns = [AGAIN, HARD, GOOD, EASY].map(g => `<button class="grade g${g}" data-action="grade" data-g="${g}">${GRADE_LABELS[g]}<small>${gradePreview(g)}</small></button>`).join("");
 
   return `
@@ -259,7 +264,8 @@ function answerHTML() {
            <button class="link-btn" data-action="edit">إضافة الآيات</button></div>`}
     ${rec.links.length ? `<h3>🔗 كلمات الربط</h3><div class="chips">${rec.links.map(l => `<span class="chip">${esc(l)}</span>`).join("")}</div>` : ""}
     ${rec.notes ? `<h3>🧠 الصورة الذهنية</h3><p class="notes">${esc(rec.notes)}</p>` : ""}
-    ${imgs.length ? `<div class="images">${imgs.map(src => `<img src="${src}" alt="صورة مساعدة">`).join("")}</div>` : ""}
+    ${maps.length ? `<h3>🗺️ الخريطة الذهنية</h3><div class="images maps">${maps.map(src => `<img src="${src}" alt="الخريطة الذهنية" data-action="zoom">`).join("")}</div>` : ""}
+    ${imgs.length ? `<h3>🖼️ صور التربيط</h3><div class="images">${imgs.map(src => `<img src="${src}" alt="صورة تربيط" data-action="zoom">`).join("")}</div>` : ""}
     ${nxt?.cue ? `<p class="next-link">🔗 <b>اربطها بما بعدها:</b> الصفحة ${nxt.page} تبدأ بـ <span class="quran-inline">${esc(nxt.cue)}</span></p>` : ""}
     <h3 class="center">كيف كان استرجاعك؟</h3>
     <p class="suggest" id="suggestBox">${suggestText()}</p>
@@ -413,6 +419,14 @@ delegate(root(), {
   "show-images": () => {
     session.cur.showImages = true;
     renderCard();
+  },
+  "show-maps": () => {
+    session.cur.showMaps = true;
+    renderCard();
+  },
+  zoom: el => {
+    const all = [...root().querySelectorAll('img[data-action="zoom"]')];
+    openGallery(all.map(im => ({ src: im.src, caption: `الصفحة ${session.cur.rec.page} · ${im.alt}` })), all.indexOf(el));
   },
   "show-notes": () => {
     session.cur.showNotes = true;

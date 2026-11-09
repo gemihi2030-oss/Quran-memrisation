@@ -21,7 +21,8 @@ export function openEditor(pageNo) {
   isNew = !rec;
   draft = rec
     ? structuredClone(rec)
-    : { page: pageNo ? +pageNo : suggestNextPage(), ayahs: [], cue: "", links: [], notes: "", images: [] };
+    : { page: pageNo ? +pageNo : suggestNextPage(), ayahs: [], cue: "", links: [], notes: "", images: [], maps: [] };
+  if (!Array.isArray(draft.maps)) draft.maps = [];
   autoCue = draft.ayahs[0] ? firstWords(draft.ayahs[0].text, 5) : "";
   render();
   if (!dlg().open) dlg().showModal();
@@ -50,9 +51,15 @@ function render() {
 
       <section class="ed-sec">
         <h3>🔑 ما ساعدك على حفظ هذه الصفحة</h3>
-        <div class="field">🖼️ صور
-          <div class="images edit" id="edImages">${pageImagesHTML()}</div>
-          <label class="btn add-img">📷 إضافة صورة<input type="file" accept="image/*" multiple hidden id="edImageInput"></label>
+        <div class="field img-field map-field">
+          <div class="img-head"><b>🗺️ الخريطة الذهنية للوجه</b><small class="muted">صورة تلخّص الصفحة كاملة</small></div>
+          <div class="images edit" id="edMaps">${imagesHTML("maps")}</div>
+          <label class="btn add-img">📷 إضافة خريطة ذهنية<input type="file" accept="image/*" multiple hidden id="edMapInput"></label>
+        </div>
+        <div class="field img-field">
+          <div class="img-head"><b>🖼️ صور التربيط</b><small class="muted">صور تربط بها الآيات ببعضها</small></div>
+          <div class="images edit" id="edImages">${imagesHTML("images")}</div>
+          <label class="btn add-img">📷 إضافة صورة تربيط<input type="file" accept="image/*" multiple hidden id="edImageInput"></label>
         </div>
         <label class="field">🔗 كلمات الربط <small class="muted">(كلمة أو عبارة في كل سطر — مثلاً تسلسل مواضيع الصفحة)</small>
           <textarea id="edLinks" rows="3">${esc(draft.links.join("\n"))}</textarea>
@@ -133,10 +140,20 @@ function ayahListHTML() {
   return html;
 }
 
-function pageImagesHTML() {
-  return draft.images
-    .map((src, i) => `<div class="img-wrap"><img src="${src}" alt=""><button type="button" class="rm" data-action="rm-img" data-i="${i}" aria-label="حذف">✕</button></div>`)
+// kind: "maps" (الخريطة الذهنية) أو "images" (صور التربيط)
+function imagesHTML(kind) {
+  const toMap = kind === "images";
+  return draft[kind]
+    .map((src, i) => `<div class="img-wrap"><img src="${src}" alt="">
+      <button type="button" class="rm" data-action="rm-img" data-kind="${kind}" data-i="${i}" aria-label="حذف">✕</button>
+      <button type="button" class="mv" data-action="mv-img" data-kind="${kind}" data-i="${i}">⇄ ${toMap ? "إلى الخريطة الذهنية" : "إلى صور التربيط"}</button>
+    </div>`)
     .join("");
+}
+
+function renderImages() {
+  $("#edMaps").innerHTML = imagesHTML("maps");
+  $("#edImages").innerHTML = imagesHTML("images");
 }
 
 function setStatus(msg, kind = "") {
@@ -200,6 +217,7 @@ async function save() {
     links: draft.links,
     notes: (draft.notes || "").trim(),
     images: draft.images,
+    maps: draft.maps,
     createdAt: existing?.createdAt || new Date().toISOString(),
     srs: existing?.srs || newCard(todayStr(), firstReview),
   };
@@ -279,8 +297,16 @@ delegate(d, {
     $("#edAyahs").innerHTML = ayahListHTML();
   },
   "rm-img": el => {
-    draft.images.splice(+el.dataset.i, 1);
-    $("#edImages").innerHTML = pageImagesHTML();
+    draft[el.dataset.kind].splice(+el.dataset.i, 1);
+    renderImages();
+  },
+  "mv-img": el => {
+    const from = el.dataset.kind;
+    const to = from === "maps" ? "images" : "maps";
+    const [src] = draft[from].splice(+el.dataset.i, 1);
+    draft[to].push(src);
+    renderImages();
+    setStatus(`✓ نُقلت الصورة إلى ${to === "maps" ? "الخريطة الذهنية" : "صور التربيط"} — اضغط «حفظ»`, "ok");
   },
   "open-existing": () => openEditor(+draft.page),
   delete: remove,
@@ -321,10 +347,11 @@ d.addEventListener("input", e => {
 
 d.addEventListener("change", async e => {
   const t = e.target;
-  if (t.id === "edImageInput") {
-    await addImages(t.files, src => draft.images.push(src));
+  if (t.id === "edImageInput" || t.id === "edMapInput") {
+    const kind = t.id === "edMapInput" ? "maps" : "images";
+    await addImages(t.files, src => draft[kind].push(src));
     t.value = "";
-    $("#edImages").innerHTML = pageImagesHTML();
+    renderImages();
   } else if (t.dataset.field === "ayah-image" && t.files[0]) {
     const i = +t.dataset.i;
     await addImages([t.files[0]], src => (draft.ayahs[i].img = src));

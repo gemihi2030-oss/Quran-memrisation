@@ -54,6 +54,24 @@ export function surahsOnPage(p) {
 }
 export const surahLabel = p => surahsOnPage(p).map(s => SURAH_NAMES[s - 1]).join(" · ");
 
+// السورة التي تبدأ بها الصفحة (لتجميع الصفحات حسب السورة)
+export const firstSurahOfPage = p => PAGE_START[p - 1][0];
+
+// أول وآخر صفحة تحتوي آيات السورة: [من، إلى]
+let surahPageCache = null;
+export function surahPages(s) {
+  if (!surahPageCache) {
+    surahPageCache = [];
+    for (let p = 1; p <= TOTAL_PAGES; p++) {
+      for (const x of surahsOnPage(p)) {
+        if (!surahPageCache[x]) surahPageCache[x] = [p, p];
+        else surahPageCache[x][1] = p;
+      }
+    }
+  }
+  return surahPageCache[s];
+}
+
 export function ayahCountOnPage(p) {
   const { from, to } = pageRange(p);
   if (from[0] === to[0]) return to[1] - from[1] + 1;

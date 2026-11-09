@@ -21,7 +21,7 @@
       var files = ["index.html", "css/style.css", "manifest.webmanifest", "js/main.js", "js/util.js", "js/db.js", "js/srs.js",
         "js/state.js", "js/router.js", "js/quran.js", "js/quran-meta.js", "js/views/home.js", "js/views/review.js",
         "js/views/mushaf.js", "js/views/editor.js", "js/views/detail.js", "js/views/range.js", "js/views/settings.js",
-        "js/views/cards.js"];
+        "js/views/cards.js", "js/views/lightbox.js"];
       Promise.all(files.map(function (f) { return fetch(f, { cache: "reload" }).catch(function () {}); }))
         .then(function () { location.reload(); });
     };

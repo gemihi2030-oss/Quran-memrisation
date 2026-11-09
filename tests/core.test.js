@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { newCard, nextState, applyGrade, addDays, daysBetween, level, durationLabel, relativeDay, AGAIN, HARD, GOOD, EASY } from "../js/srs.js";
 import {
   SURAH_NAMES, juzOfPage, hizbOfPage, juzRange, surahsOnPage, surahLabel, pageRange, ayahCountOnPage,
-  stripBasmala, parseManualText, normalizeArabic,
+  stripBasmala, parseManualText, normalizeArabic, surahPages, firstSurahOfPage,
 } from "../js/quran.js";
 import { AYAH_COUNT, PAGE_START } from "../js/quran-meta.js";
 
@@ -119,6 +119,17 @@ test("mushaf metadata", () => {
   assert.equal(total, 6236);
 });
 
+test("surah page ranges", () => {
+  assert.deepEqual(surahPages(1), [1, 1]);
+  assert.deepEqual(surahPages(2), [2, 49]); // البقرة: 48 صفحة
+  assert.deepEqual(surahPages(3), [50, 76]);
+  assert.deepEqual(surahPages(18), [293, 304]); // الكهف
+  assert.deepEqual(surahPages(114), [604, 604]);
+  assert.equal(firstSurahOfPage(12), 2);
+  assert.equal(firstSurahOfPage(604), 112);
+  for (let s = 1; s <= 114; s++) assert.ok(surahPages(s), `surah ${s} has pages`);
+});
+
 test("basmala stripping (including the بِّسْمِ variant)", () => {
   const b = "بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ";
   assert.deepEqual(stripBasmala(b + " قُلْ هُوَ ٱللَّهُ أَحَدٌ", 112, 1), { text: "قُلْ هُوَ ٱللَّهُ أَحَدٌ", basmala: true });
@@ -141,8 +152,10 @@ test("v1 backup records are upgraded on import", async () => {
   assert.deepEqual(r.ayahs.map(x => x.a), [77, 78]);
   assert.deepEqual(r.srs, v1.srs);
   assert.deepEqual(r.links, ["الأميون"]);
+  assert.deepEqual(r.maps, [], "v1 records get an empty mind-map list");
   const bare = normalizeRecord({ page: 5, srs: { due: "2026-11-09" } });
   assert.deepEqual(bare.ayahs, []);
+  assert.deepEqual(bare.maps, []);
   assert.equal(bare.srs.ease, 2.5);
   assert.deepEqual(bare.srs.history, []);
 });

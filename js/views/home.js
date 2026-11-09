@@ -1,8 +1,8 @@
 // الشاشة الرئيسية: الإحصائيات، المراجعات القادمة، الأجزاء، الصفحات الضعيفة
 import { $, esc, delegate } from "../util.js";
-import { pages, dueList, streak, retention, todayCount, weakPages, suggestNextPage } from "../state.js";
+import { pages, dueList, streak, retention, todayCount, weakPages } from "../state.js";
 import { Store } from "../db.js";
-import { TOTAL_PAGES, juzRange, surahLabel } from "../quran.js";
+import { TOTAL_PAGES, juzRange, surahLabel, firstSurahOfPage } from "../quran.js";
 import { todayStr, addDays, daysBetween, parseDate, relativeDay } from "../srs.js";
 import { show } from "../router.js";
 import { openEditor } from "./editor.js";
@@ -10,7 +10,7 @@ import { openRange } from "./range.js";
 import { startSession } from "./review.js";
 import { scrollToJuz, showPagesList } from "./mushaf.js";
 import { openDetail } from "./detail.js";
-import { pageCardHTML, lastTouched } from "./cards.js";
+import { pageCardHTML, lastTouched, surahProgress } from "./cards.js";
 
 const root = () => $("#view-home");
 
@@ -22,7 +22,6 @@ export function renderHome() {
   const due = dueList(t).length;
   const pct = (total / TOTAL_PAGES) * 100;
   const ret = retention();
-  const next = suggestNextPage();
 
   root().innerHTML = `
     <div class="card hero">
@@ -39,8 +38,9 @@ export function renderHome() {
         ? `<button class="btn primary big" data-action="review">🔁 ابدأ مراجعة اليوم (${due})</button>`
         : `<p class="all-done">✓ لا مراجعات مستحقة اليوم — موعدك القادم: <b>${nextDueLabel(t)}</b></p>
            <button class="btn primary big" data-action="practice">💪 تدرّب الآن على صفحاتي</button>`}
-      <button class="btn ghost" data-action="add">＋ حفظت صفحة جديدة${next ? ` <small class="muted">(المقترحة: ${next})</small>` : ""}</button>
+      <button class="btn ghost" data-action="add">＋ حفظت صفحة جديدة</button>
     </div>
+    ${currentSurahHTML()}
     ${recentHTML(t)}
     ${backupReminder(total)}
     <div class="card">
@@ -72,6 +72,30 @@ function renderWelcome() {
 function nextDueLabel(t) {
   const next = [...pages.values()].map(p => p.srs.due).filter(d => d > t).sort()[0];
   return next ? relativeDay(next, t) : "—";
+}
+
+// السورة التي تحفظها الآن (سورة آخر صفحة سجّلتها بنفسك) وتقدمك فيها
+function currentSurahHTML() {
+  const own = [...pages.values()].filter(p => !p.bulk);
+  const src = own.length ? own : [...pages.values()];
+  if (!src.length) return "";
+  const latest = src.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))[0];
+  const s = firstSurahOfPage(latest.page);
+  const pr = surahProgress(s);
+  let next = null;
+  for (let p = latest.page + 1; p <= pr.b && next === null; p++) if (!pages.has(p)) next = p;
+  for (let p = pr.a; p <= pr.b && next === null; p++) if (!pages.has(p)) next = p;
+  const nMaps = [...pages.values()].filter(r => firstSurahOfPage(r.page) === s).reduce((n, r) => n + (r.maps?.length || 0), 0);
+  return `<div class="card surah-now">
+    <div class="row between"><h2>📖 سورة ${pr.name}</h2><small class="muted">حفظك الحالي</small></div>
+    <div class="progress"><div class="bar" style="width:${pr.pct}%"></div></div>
+    <p class="muted small">${pr.n} / ${pr.total} صفحة (${pr.pct}٪) · من الصفحة ${pr.a} إلى ${pr.b}</p>
+    ${next ? `<button class="btn primary big" data-action="add-page" data-page="${next}">＋ حفظت الصفحة ${next}</button>` : `<p class="all-done">🎉 ما شاء الله! سجّلت كل صفحات السورة.</p>`}
+    <div class="add-row">
+      <button class="btn" data-action="surah-pages" data-s="${s}">📋 صفحات السورة</button>
+      <button class="btn" data-action="surah-maps" data-s="${s}">🗺️ خرائطها (${nMaps})</button>
+    </div>
+  </div>`;
 }
 
 // آخر الصفحات التي سجّلتها أو عدّلتها، بصورها وكلمات ربطها
@@ -169,6 +193,9 @@ delegate(root(), {
   drill: el => startSession({ pages: [+el.dataset.page], extra: true }),
   practice: () => startSession({ extra: true }),
   "all-pages": () => showPagesList(),
+  "add-page": el => openEditor(+el.dataset.page),
+  "surah-pages": el => showPagesList({ surah: +el.dataset.s }),
+  "surah-maps": el => showPagesList({ surah: +el.dataset.s, view: "maps" }),
   "open-page": el => openDetail(+el.dataset.page),
 });
 
