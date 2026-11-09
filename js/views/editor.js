@@ -6,7 +6,8 @@ import {
   firstWords, arDigits, parseManualText, ayahsToText, SURAH_NAMES,
 } from "../quran.js";
 import { newCard, todayStr } from "../srs.js";
-import { refresh } from "../router.js";
+import { refresh, current } from "../router.js";
+import { openDetail } from "./detail.js";
 
 const dlg = () => $("#editorDialog");
 let draft = null;
@@ -48,37 +49,35 @@ function render() {
       <p class="status" id="edStatus"></p>
 
       <section class="ed-sec">
-        <div class="row between wrap">
-          <h3>📖 آيات الصفحة ومفاتيحها</h3>
-          <div class="row gap-s">
-            <button type="button" class="btn small" data-action="fetch">🌐 جلب الآيات</button>
-            <button type="button" class="btn small" data-action="manual">✏️ كتابة يدوية</button>
-          </div>
+        <h3>🔑 ما ساعدك على حفظ هذه الصفحة</h3>
+        <div class="field">🖼️ صور
+          <div class="images edit" id="edImages">${pageImagesHTML()}</div>
+          <label class="btn add-img">📷 إضافة صورة<input type="file" accept="image/*" multiple hidden id="edImageInput"></label>
         </div>
-        <div id="edManual" hidden>
-          <textarea id="edManualText" rows="6" class="quran-input" placeholder="اكتب أو الصق الآيات: آية في كل سطر، ويمكن إضافة رقمها في آخرها هكذا ﴿5﴾"></textarea>
-          <button type="button" class="btn small" data-action="apply-manual">تطبيق النص</button>
-        </div>
-        <p class="hint">اضغط <b>«＋ مفتاح»</b> بجانب أي آية لتضيف ما ساعدك على حفظها: <b>كلمة ربط</b>، <b>صورة ذهنية</b>، أو <b>صورة</b>. ستظهر لك كتلميحات عند التسميع.</p>
-        <ol class="ayah-list" id="edAyahs">${ayahListHTML()}</ol>
-      </section>
-
-      <section class="ed-sec">
-        <h3>🔑 مفاتيح الصفحة كاملة</h3>
-        <label class="field">بداية الصفحة <small class="muted">(تظهر كمفتاح عند المراجعة)</small>
-          <input type="text" id="edCue" class="quran-input one" value="${esc(draft.cue)}">
-        </label>
         <label class="field">🔗 كلمات الربط <small class="muted">(كلمة أو عبارة في كل سطر — مثلاً تسلسل مواضيع الصفحة)</small>
           <textarea id="edLinks" rows="3">${esc(draft.links.join("\n"))}</textarea>
         </label>
         <label class="field">🧠 الصورة الذهنية / القصة / المتشابهات
           <textarea id="edNotes" rows="3" placeholder="كيف تخيلت الآيات؟ ما القصة التي ربطتها بها؟ متشابهات تنتبه لها؟">${esc(draft.notes)}</textarea>
         </label>
-        <div class="field">🖼️ صور مساعدة للصفحة
-          <div class="images edit" id="edImages">${pageImagesHTML()}</div>
-          <label class="btn small">＋ إضافة صورة<input type="file" accept="image/*" multiple hidden id="edImageInput"></label>
-        </div>
+        <label class="field">بداية الصفحة <small class="muted">(تظهر كمفتاح عند المراجعة — تُملأ تلقائياً)</small>
+          <input type="text" id="edCue" class="quran-input one" value="${esc(draft.cue)}">
+        </label>
       </section>
+
+      <details class="ed-sec ayah-sec" ${draft.ayahs.some(hasKeys) ? "open" : ""}>
+        <summary><h3>📖 آيات الصفحة — مفتاح لكل آية <small class="muted">(اختياري)</small></h3></summary>
+        <div class="row gap-s wrap ayah-tools">
+          <button type="button" class="btn small" data-action="fetch">🌐 جلب الآيات</button>
+          <button type="button" class="btn small" data-action="manual">✏️ كتابة يدوية</button>
+        </div>
+        <div id="edManual" hidden>
+          <textarea id="edManualText" rows="6" class="quran-input" placeholder="اكتب أو الصق الآيات: آية في كل سطر، ويمكن إضافة رقمها في آخرها هكذا ﴿5﴾"></textarea>
+          <button type="button" class="btn small" data-action="apply-manual">تطبيق النص</button>
+        </div>
+        <p class="hint">اضغط <b>«＋ مفتاح»</b> بجانب أي آية لتضيف لها <b>كلمة ربط</b> أو <b>صورة ذهنية</b> أو <b>صورة</b>. تظهر لك عند التسميع «آية بآية».</p>
+        <ol class="ayah-list" id="edAyahs">${ayahListHTML()}</ol>
+      </details>
 
       ${isNew ? `<label class="field">⏰ أول مراجعة
         <select id="edFirst">
@@ -211,8 +210,10 @@ async function save() {
     return;
   }
   dlg().close();
-  toast(isNew ? `تم تسجيل الصفحة ${p} ✓ ${firstReview ? "أول مراجعة غداً" : "ستظهر في مراجعة اليوم"} إن شاء الله` : "تم الحفظ ✓");
   refresh();
+  // نعرض الصفحة المحفوظة مباشرة حتى ترى صورك ومفاتيحك
+  if (current() !== "review") openDetail(p);
+  toast(isNew ? `تم تسجيل الصفحة ${p} ✓ ${firstReview ? "أول مراجعة غداً" : "ستظهر في مراجعة اليوم"} إن شاء الله` : "تم الحفظ ✓");
 }
 
 async function remove() {
@@ -225,13 +226,19 @@ async function remove() {
 }
 
 async function addImages(files, onEach) {
+  let ok = 0;
+  let failed = 0;
+  setStatus("⏳ جارٍ تجهيز الصورة…");
   for (const f of files) {
     try {
       onEach(await compressImage(f));
+      ok++;
     } catch {
-      toast("تعذر قراءة الصورة");
+      failed++;
     }
   }
+  if (failed) setStatus(`⚠️ تعذر قراءة ${failed} صورة (ربما صيغتها غير مدعومة). جرّب صورة JPG أو لقطة شاشة.`, "warn");
+  else if (ok) setStatus(`✓ أضيفت ${ok === 1 ? "الصورة" : ok + " صور"} — لا تنسَ الضغط على «حفظ»`, "ok");
 }
 
 // ---------- الأحداث ----------

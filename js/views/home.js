@@ -3,12 +3,14 @@ import { $, esc, delegate } from "../util.js";
 import { pages, dueList, streak, retention, todayCount, weakPages, suggestNextPage } from "../state.js";
 import { Store } from "../db.js";
 import { TOTAL_PAGES, juzRange, surahLabel } from "../quran.js";
-import { todayStr, addDays, daysBetween, parseDate } from "../srs.js";
+import { todayStr, addDays, daysBetween, parseDate, relativeDay } from "../srs.js";
 import { show } from "../router.js";
 import { openEditor } from "./editor.js";
 import { openRange } from "./range.js";
 import { startSession } from "./review.js";
-import { scrollToJuz } from "./mushaf.js";
+import { scrollToJuz, showPagesList } from "./mushaf.js";
+import { openDetail } from "./detail.js";
+import { pageCardHTML, lastTouched } from "./cards.js";
 
 const root = () => $("#view-home");
 
@@ -33,9 +35,13 @@ export function renderHome() {
       </div>
       <div class="progress" title="${pct.toFixed(1)}٪"><div class="bar" style="width:${pct.toFixed(2)}%"></div></div>
       <p class="muted center small">${total} / ${TOTAL_PAGES} صفحة (${pct.toFixed(1)}٪) · ما يعادل ${(total / 20).toFixed(1)} جزء · ${todayCount()} مراجعة اليوم</p>
-      <button class="btn primary big" data-action="review">${due ? `🔁 ابدأ مراجعة اليوم (${due})` : "✓ لا مراجعات مستحقة — بارك الله فيك"}</button>
+      ${due
+        ? `<button class="btn primary big" data-action="review">🔁 ابدأ مراجعة اليوم (${due})</button>`
+        : `<p class="all-done">✓ لا مراجعات مستحقة اليوم — موعدك القادم: <b>${nextDueLabel(t)}</b></p>
+           <button class="btn primary big" data-action="practice">💪 تدرّب الآن على صفحاتي</button>`}
       <button class="btn ghost" data-action="add">＋ حفظت صفحة جديدة${next ? ` <small class="muted">(المقترحة: ${next})</small>` : ""}</button>
     </div>
+    ${recentHTML(t)}
     ${backupReminder(total)}
     <div class="card">
       <h2>المراجعات القادمة</h2>
@@ -61,6 +67,20 @@ function renderWelcome() {
     </div>
     ${tipsHTML(true)}
   `;
+}
+
+function nextDueLabel(t) {
+  const next = [...pages.values()].map(p => p.srs.due).filter(d => d > t).sort()[0];
+  return next ? relativeDay(next, t) : "—";
+}
+
+// آخر الصفحات التي سجّلتها أو عدّلتها، بصورها وكلمات ربطها
+function recentHTML(t) {
+  const recent = [...pages.values()].sort((a, b) => lastTouched(b).localeCompare(lastTouched(a))).slice(0, 3);
+  return `<div class="card">
+    <div class="row between"><h2>📚 صفحاتي</h2><button class="link-btn" data-action="all-pages">عرض الكل (${pages.size}) ←</button></div>
+    <div class="plist">${recent.map(r => pageCardHTML(r, t)).join("")}</div>
+  </div>`;
 }
 
 function backupReminder(total) {
@@ -147,4 +167,14 @@ delegate(root(), {
   backup: () => show("settings"),
   juz: el => scrollToJuz(+el.dataset.j),
   drill: el => startSession({ pages: [+el.dataset.page], extra: true }),
+  practice: () => startSession({ extra: true }),
+  "all-pages": () => showPagesList(),
+  "open-page": el => openDetail(+el.dataset.page),
+});
+
+root().addEventListener("keydown", e => {
+  if (e.key === "Enter" && e.target.matches(".pcard")) {
+    e.preventDefault();
+    openDetail(+e.target.dataset.page);
+  }
 });

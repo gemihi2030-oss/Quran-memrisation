@@ -8,12 +8,28 @@ export function esc(s) {
 
 export const lines = s => String(s || "").split("\n").map(x => x.trim()).filter(Boolean);
 
+// الإشعار يظهر فوق النوافذ المفتوحة أيضاً (popover في الطبقة العليا)
 export function toast(msg, ms = 2600) {
   const t = $("#toast");
   t.textContent = msg;
-  t.classList.add("show");
+  if (t.showPopover) {
+    try {
+      if (t.matches(":popover-open")) t.hidePopover(); // لإعادته فوق آخر نافذة فُتحت
+      t.showPopover();
+    } catch {}
+  }
+  requestAnimationFrame(() => t.classList.add("show"));
   clearTimeout(toast._t);
-  toast._t = setTimeout(() => t.classList.remove("show"), ms);
+  toast._t = setTimeout(() => {
+    t.classList.remove("show");
+    setTimeout(() => {
+      if (!t.classList.contains("show") && t.hidePopover) {
+        try {
+          t.hidePopover();
+        } catch {}
+      }
+    }, 300);
+  }, ms);
 }
 
 // معالجة النقرات بعناصر data-action داخل حاوية

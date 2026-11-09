@@ -20,7 +20,8 @@
       try { if (sessionStorage.getItem("qm-repaired")) return; sessionStorage.setItem("qm-repaired", "1"); } catch (e) { return; }
       var files = ["index.html", "css/style.css", "manifest.webmanifest", "js/main.js", "js/util.js", "js/db.js", "js/srs.js",
         "js/state.js", "js/router.js", "js/quran.js", "js/quran-meta.js", "js/views/home.js", "js/views/review.js",
-        "js/views/mushaf.js", "js/views/editor.js", "js/views/detail.js", "js/views/range.js", "js/views/settings.js"];
+        "js/views/mushaf.js", "js/views/editor.js", "js/views/detail.js", "js/views/range.js", "js/views/settings.js",
+        "js/views/cards.js"];
       Promise.all(files.map(function (f) { return fetch(f, { cache: "reload" }).catch(function () {}); }))
         .then(function () { location.reload(); });
     };
@@ -56,14 +57,15 @@
   <dialog id="editorDialog" class="sheet"></dialog>
   <dialog id="detailDialog" class="sheet"></dialog>
   <dialog id="rangeDialog" class="sheet"></dialog>
+  <dialog id="imageDialog" class="lightbox"></dialog>
 
   <nav class="tabbar">
     <button data-view="home"><span aria-hidden="true">🏠</span>الرئيسية</button>
     <button data-view="review"><span aria-hidden="true">🔁</span>المراجعة<em class="badge" id="navBadge" hidden></em></button>
-    <button data-view="pages"><span aria-hidden="true">📚</span>المصحف</button>
+    <button data-view="pages"><span aria-hidden="true">📚</span>صفحاتي</button>
     <button data-view="settings"><span aria-hidden="true">⚙️</span>الإعدادات</button>
   </nav>
 
-  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite" popover="manual"></div>
 </body>
 </html>
