@@ -196,6 +196,7 @@ test("photo sources: time parsing and video links", async () => {
   assert.equal(sourceLink("", "1:00"), null);
   assert.deepEqual(toPhoto("data:x"), { src: "data:x" });
   assert.deepEqual(toPhoto({ src: "data:x", url: "u", time: "" }), { src: "data:x", url: "u" });
+  assert.deepEqual(toPhoto({ src: "data:x", note: "ثلاث فرق من أهل الكتاب" }), { src: "data:x", note: "ثلاث فرق من أهل الكتاب" });
 });
 
 test("manual text parsing (v1 compatible)", () => {

@@ -79,16 +79,23 @@ function galleryHTML(imgs, kind, title, cls) {
   return `<h3>${title}${list.length > 1 ? ` (${list.length})` : ""}</h3>
     <div class="${cls}">${list
       .map(im => `<button type="button" class="gimg" data-action="view-img" data-i="${im.i}">
-        <img src="${im.src}" alt="" loading="lazy">${im.a ? `<span>الآية ${arDigits(im.a)}</span>` : ""}${im.url ? `<i class="src-badge">▶️</i>` : ""}</button>`)
+        <img src="${im.src}" alt="" loading="lazy">${im.a ? `<span>الآية ${arDigits(im.a)}</span>` : ""}${im.url || im.note ? `<i class="src-badge">${im.note ? "📝" : ""}${im.url ? "▶️" : ""}</i>` : ""}</button>`)
       .join("")}</div>`;
 }
 
-// روابط مصادر الصور (يوتيوب، إنستغرام…) مع الوقت داخل الفيديو
+// ملاحظات كل صورة (طرق الحفظ التي تعلّمتها منها) + رابط مصدرها والوقت داخل الفيديو
 function sourcesHTML(imgs) {
-  const list = imgs.filter(im => im.url || im.time);
+  const list = imgs.map((im, i) => ({ ...im, i })).filter(im => im.note || im.url || im.time);
   if (!list.length) return "";
-  return `<h3>🔗 مصادر الصور</h3><ul class="src-list">${list
-    .map(im => `<li><span>${im.kind === "map" ? "🗺️ الخريطة الذهنية" : "🖼️ صورة تربيط"}</span>${sourceButtonHTML(im)}</li>`)
+  return `<h3>📝 ملاحظات الصور ومصادرها</h3><ul class="photo-notes">${list
+    .map(im => `<li>
+      <button type="button" class="pn-thumb" data-action="view-img" data-i="${im.i}"><img src="${im.src}" alt="" loading="lazy"></button>
+      <div class="pn-body">
+        <b class="small">${im.kind === "map" ? "🗺️ الخريطة الذهنية" : `🖼️ صورة تربيط${im.a ? ` · الآية ${arDigits(im.a)}` : ""}`}</b>
+        ${im.note ? `<p class="notes">${esc(im.note)}</p>` : ""}
+        ${sourceButtonHTML(im)}
+      </div>
+    </li>`)
     .join("")}</ul>`;
 }
 
@@ -107,7 +114,7 @@ delegate(dlg(), {
     startSession({ pages: [pageNo], extra: !isDue(rec.srs) });
   },
   "view-img": el => {
-    const imgs = dlg()._imgs.map(im => ({ src: im.src, url: im.url, time: im.time, caption: captionOf(im, pageNo) }));
+    const imgs = dlg()._imgs.map(im => ({ ...im, caption: captionOf(im, pageNo) }));
     openGallery(imgs, +el.dataset.i);
   },
 });

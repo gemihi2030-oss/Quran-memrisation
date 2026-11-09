@@ -151,12 +151,14 @@ function imagesHTML(kind) {
       </div>
       <div class="photo-fields">
         <input type="url" inputmode="url" data-field="p-url" data-kind="${kind}" data-i="${i}" value="${esc(p.url)}"
-          placeholder="🔗 رابط المصدر (يوتيوب، إنستغرام، فيسبوك…)">
+          placeholder="🔗 رابط المصدر">
         <input type="text" data-field="p-time" data-kind="${kind}" data-i="${i}" value="${esc(p.time)}"
-          placeholder="⏱️ الوقت في الفيديو، مثل 12:35">
+          placeholder="⏱️ الوقت (12:35)">
         <small class="src-hint" data-hint="${kind}-${i}">${sourceHint(p)}</small>
-        <button type="button" class="link-btn mv-btn" data-action="mv-img" data-kind="${kind}" data-i="${i}">⇄ نقل ${toMap ? "إلى الخريطة الذهنية" : "إلى صور التربيط"}</button>
       </div>
+      <textarea class="photo-note" rows="3" data-field="p-note" data-kind="${kind}" data-i="${i}"
+        placeholder="📝 ملاحظات / طرق حفظ تعلّمتها من هذه الصورة">${esc(p.note)}</textarea>
+      <button type="button" class="link-btn mv-btn" data-action="mv-img" data-kind="${kind}" data-i="${i}">⇄ نقل ${toMap ? "إلى الخريطة الذهنية" : "إلى صور التربيط"}</button>
     </div>`)
     .join("");
 }
@@ -180,8 +182,10 @@ function cleanPhoto(p) {
   const o = { src: p.src };
   const url = (p.url || "").trim();
   const time = (p.time || "").trim();
+  const note = (p.note || "").trim();
   if (url) o.url = safeUrl(url) || url;
   if (time) o.time = parseTime(time) === null ? time : formatTime(parseTime(time));
+  if (note) o.note = note;
   return o;
 }
 
@@ -369,7 +373,9 @@ d.addEventListener("input", e => {
   } else if (t.id === "edCue") draft.cue = t.value;
   else if (t.id === "edLinks") draft.links = lines(t.value);
   else if (t.id === "edNotes") draft.notes = t.value;
-  else if (t.dataset.field === "p-url" || t.dataset.field === "p-time") {
+  else if (t.dataset.field === "p-note") {
+    draft[t.dataset.kind][+t.dataset.i].note = t.value;
+  } else if (t.dataset.field === "p-url" || t.dataset.field === "p-time") {
     const p = draft[t.dataset.kind][+t.dataset.i];
     p[t.dataset.field === "p-url" ? "url" : "time"] = t.value;
     const hint = dlg().querySelector(`[data-hint="${t.dataset.kind}-${t.dataset.i}"]`);

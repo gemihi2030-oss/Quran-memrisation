@@ -78,7 +78,8 @@ const LIST_FILTERS = [
 function matchQuery(r, q) {
   if (!q) return true;
   if (/^\d+$/.test(q)) return r.page === +q;
-  const hay = normalizeArabic([surahLabel(r.page), ...allLinks(r), r.notes, ...r.ayahs.map(x => x.note || "")].join(" "));
+  const photoNotes = allImages(r).map(p => p.note || "");
+  const hay = normalizeArabic([surahLabel(r.page), ...allLinks(r), r.notes, ...r.ayahs.map(x => x.note || ""), ...photoNotes].join(" "));
   return hay.includes(normalizeArabic(q));
 }
 
@@ -150,7 +151,7 @@ function mapItems() {
     .sort((a, b) => a.page - b.page);
   for (const r of recs) {
     for (const im of mapImages(r)) {
-      items.push({ src: im.src, url: im.url, time: im.time, page: r.page, surah: firstSurahOfPage(r.page), caption: `الصفحة ${r.page} · ${surahLabel(r.page)}` });
+      items.push({ ...im, page: r.page, surah: firstSurahOfPage(r.page), caption: `الصفحة ${r.page} · ${surahLabel(r.page)}` });
     }
   }
   return items;
@@ -177,7 +178,7 @@ function renderMaps() {
         open = true;
       }
       body += `<button type="button" class="map-tile" data-action="view-map" data-i="${i}">
-        <img src="${it.src}" alt="" loading="lazy"><span>ص ${it.page}</span>${it.url ? `<i class="src-badge">▶️</i>` : ""}</button>`;
+        <img src="${it.src}" alt="" loading="lazy"><span>ص ${it.page}</span>${it.url || it.note ? `<i class="src-badge">${it.note ? "📝" : ""}${it.url ? "▶️" : ""}</i>` : ""}</button>`;
     });
     if (open) body += `</div>`;
   }

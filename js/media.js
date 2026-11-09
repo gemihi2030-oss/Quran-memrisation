@@ -1,12 +1,14 @@
 // صور الصفحة ومصادرها: رابط (يوتيوب، إنستغرام، فيسبوك…) + الوقت داخل الفيديو
 
-// الصورة تُخزَّن كـ { src, url?, time? } (النسخ السابقة كانت تخزّن النص src فقط)
+// الصورة تُخزَّن كـ { src, url?, time?, note? } (النسخ السابقة كانت تخزّن النص src فقط)
+// note = ملاحظات / طرق حفظ تعلّمها المستخدم من هذه الصورة
 export function toPhoto(x) {
   if (typeof x === "string") return { src: x };
   if (!x || typeof x.src !== "string") return null;
   const p = { src: x.src };
   if (x.url) p.url = String(x.url);
   if (x.time) p.time = String(x.time);
+  if (x.note) p.note = String(x.note);
   return p;
 }
 

@@ -282,7 +282,10 @@ function reviewPhotos(rec) {
 
 function photosHTML(list, cls) {
   return `<div class="${cls}">${list
-    .map(p => `<img src="${p.src}" alt="${p.kind === "map" ? "الخريطة الذهنية" : "صورة تربيط"}" data-action="zoom" data-i="${p.i}">`)
+    .map(p => `<figure class="rphoto">
+      <img src="${p.src}" alt="${p.kind === "map" ? "الخريطة الذهنية" : "صورة تربيط"}" data-action="zoom" data-i="${p.i}">
+      ${p.note ? `<figcaption>📝 ${esc(p.note)}</figcaption>` : ""}
+    </figure>`)
     .join("")}</div>`;
 }
 
@@ -441,9 +444,7 @@ delegate(root(), {
   zoom: el => {
     const { rec } = session.cur;
     const items = reviewPhotos(rec).map(p => ({
-      src: p.src,
-      url: p.url,
-      time: p.time,
+      ...p,
       caption: `الصفحة ${rec.page} · ${p.kind === "map" ? "الخريطة الذهنية" : "صورة تربيط"}`,
     }));
     openGallery(items, +el.dataset.i);

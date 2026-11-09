@@ -8,7 +8,7 @@ let idx = 0;
 let onOpenPage = null;
 let touchX = null;
 
-// list: [{ src, caption, page?, url?, time? }]
+// list: [{ src, caption, page?, url?, time?, note? }]
 export function openGallery(list, start = 0, opts = {}) {
   if (!list.length) return;
   items = list;
@@ -29,6 +29,7 @@ function render() {
       <span class="lb-cap">${esc(it.caption || "")}${many ? ` <small>(${idx + 1} / ${items.length})</small>` : ""}</span>
       ${many ? `<button type="button" class="lb-btn" data-lb="next" ${idx === items.length - 1 ? "disabled" : ""}>التالية ←</button>` : ""}
     </div>
+    ${it.note ? `<p class="lb-note">📝 ${esc(it.note)}</p>` : ""}
     <div class="lb-actions">
       ${sourceButtonHTML(it, "btn small lb-src")}
       ${onOpenPage && it.page ? `<button type="button" class="btn small lb-open" data-lb="open">📖 فتح الصفحة ${it.page}</button>` : ""}
@@ -46,7 +47,8 @@ const d = dlg();
 d.addEventListener("click", e => {
   const b = e.target.closest("[data-lb]");
   if (!b) {
-    if (e.target.tagName !== "IMG") d.close(); // الضغط خارج الصورة يغلق العارض
+    // الضغط خارج الصورة والملاحظة يغلق العارض
+    if (e.target.tagName !== "IMG" && !e.target.closest(".lb-note")) d.close();
     return;
   }
   const act = b.dataset.lb;
