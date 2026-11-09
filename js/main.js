@@ -8,6 +8,8 @@ import { renderReview } from "./views/review.js";
 import { renderMushaf } from "./views/mushaf.js";
 import { renderSettings } from "./views/settings.js";
 
+window.__appStarted = true; // كل الملفات حُمّلت بنجاح (انظر الإصلاح الذاتي في index.html)
+
 register("home", renderHome);
 register("review", renderReview);
 register("pages", renderMushaf);

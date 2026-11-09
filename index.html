@@ -24,8 +24,9 @@
       Promise.all(files.map(function (f) { return fetch(f, { cache: "reload" }).catch(function () {}); }))
         .then(function () { location.reload(); });
     };
-    window.addEventListener("error", function (e) {
-      if (e && e.filename && e.filename.indexOf("/js/") !== -1) window.__repairApp();
+    // إن لم يبدأ التطبيق بعد اكتمال تحميل الصفحة، فهناك ملف لم يُحمَّل كما يجب
+    window.addEventListener("load", function () {
+      setTimeout(function () { if (!window.__appStarted) window.__repairApp(); }, 1500);
     });
   </script>
   <script type="module" src="js/main.js" onerror="__repairApp()"></script>
