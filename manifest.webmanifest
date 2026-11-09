@@ -1,15 +1,19 @@
 {
-  "name": "متابعة حفظ القرآن الكريم",
+  "name": "QURAN MEMORISATION — حفظ القرآن",
   "short_name": "حفظ القرآن",
-  "description": "متابعة حفظ القرآن بالاسترجاع النشط والتكرار المتباعد",
-  "lang": "ar",
-  "dir": "rtl",
+  "description": "متابعة حفظ القرآن الكريم بالاسترجاع النشط والتكرار المتباعد",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "orientation": "portrait",
+  "dir": "rtl",
+  "lang": "ar",
   "background_color": "#f6f3ea",
   "theme_color": "#0f5132",
   "icons": [
-    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

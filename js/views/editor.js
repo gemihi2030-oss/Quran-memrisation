@@ -1,0 +1,326 @@
+// نافذة تسجيل / تعديل صفحة: الآيات + مفاتيح الحفظ (كلمات الربط، الصور الذهنية، الصور)
+import { $, esc, lines, toast, delegate, compressImage } from "../util.js";
+import { pages, savePage, removePage, suggestNextPage } from "../state.js";
+import {
+  TOTAL_PAGES, getPageAyahs, surahLabel, juzOfPage, hizbOfPage, rangeLabel, ayahCountOnPage,
+  firstWords, arDigits, parseManualText, ayahsToText, SURAH_NAMES,
+} from "../quran.js";
+import { newCard, todayStr } from "../srs.js";
+import { refresh } from "../router.js";
+
+const dlg = () => $("#editorDialog");
+let draft = null;
+let isNew = false;
+let fetchToken = 0;
+let autoCue = ""; // آخر بداية صفحة وُلّدت تلقائياً (نستبدلها فقط إن لم يعدّلها المستخدم)
+let pageTimer = 0;
+
+export function openEditor(pageNo) {
+  const rec = pageNo ? pages.get(+pageNo) : null;
+  isNew = !rec;
+  draft = rec
+    ? structuredClone(rec)
+    : { page: pageNo ? +pageNo : suggestNextPage(), ayahs: [], cue: "", links: [], notes: "", images: [] };
+  autoCue = draft.ayahs[0] ? firstWords(draft.ayahs[0].text, 5) : "";
+  render();
+  if (!dlg().open) dlg().showModal();
+  const p = +draft.page;
+  if (p && !draft.ayahs.length) loadText(p);
+  if (isNew && !p) $("#edPage").focus();
+}
+
+// ---------- القوالب ----------
+function render() {
+  const p = +draft.page;
+  dlg().innerHTML = `
+  <form id="editorForm" novalidate>
+    <header class="sheet-head">
+      <h2>${isNew ? "تسجيل صفحة محفوظة" : `تعديل الصفحة ${p}`}</h2>
+      <button type="button" class="icon-btn" data-action="close" aria-label="إغلاق">✕</button>
+    </header>
+    <div class="sheet-body">
+      <div class="row top">
+        <label class="field page-field">رقم الصفحة
+          <input type="number" id="edPage" min="1" max="${TOTAL_PAGES}" inputmode="numeric" value="${esc(draft.page)}" ${isNew ? "" : "readonly"}>
+        </label>
+        <div class="page-meta" id="edMeta">${metaHTML(p)}</div>
+      </div>
+      <p class="status" id="edStatus"></p>
+
+      <section class="ed-sec">
+        <div class="row between wrap">
+          <h3>📖 آيات الصفحة ومفاتيحها</h3>
+          <div class="row gap-s">
+            <button type="button" class="btn small" data-action="fetch">🌐 جلب الآيات</button>
+            <button type="button" class="btn small" data-action="manual">✏️ كتابة يدوية</button>
+          </div>
+        </div>
+        <div id="edManual" hidden>
+          <textarea id="edManualText" rows="6" class="quran-input" placeholder="اكتب أو الصق الآيات: آية في كل سطر، ويمكن إضافة رقمها في آخرها هكذا ﴿5﴾"></textarea>
+          <button type="button" class="btn small" data-action="apply-manual">تطبيق النص</button>
+        </div>
+        <p class="hint">اضغط <b>«＋ مفتاح»</b> بجانب أي آية لتضيف ما ساعدك على حفظها: <b>كلمة ربط</b>، <b>صورة ذهنية</b>، أو <b>صورة</b>. ستظهر لك كتلميحات عند التسميع.</p>
+        <ol class="ayah-list" id="edAyahs">${ayahListHTML()}</ol>
+      </section>
+
+      <section class="ed-sec">
+        <h3>🔑 مفاتيح الصفحة كاملة</h3>
+        <label class="field">بداية الصفحة <small class="muted">(تظهر كمفتاح عند المراجعة)</small>
+          <input type="text" id="edCue" class="quran-input one" value="${esc(draft.cue)}">
+        </label>
+        <label class="field">🔗 كلمات الربط <small class="muted">(كلمة أو عبارة في كل سطر — مثلاً تسلسل مواضيع الصفحة)</small>
+          <textarea id="edLinks" rows="3">${esc(draft.links.join("\n"))}</textarea>
+        </label>
+        <label class="field">🧠 الصورة الذهنية / القصة / المتشابهات
+          <textarea id="edNotes" rows="3" placeholder="كيف تخيلت الآيات؟ ما القصة التي ربطتها بها؟ متشابهات تنتبه لها؟">${esc(draft.notes)}</textarea>
+        </label>
+        <div class="field">🖼️ صور مساعدة للصفحة
+          <div class="images edit" id="edImages">${pageImagesHTML()}</div>
+          <label class="btn small">＋ إضافة صورة<input type="file" accept="image/*" multiple hidden id="edImageInput"></label>
+        </div>
+      </section>
+
+      ${isNew ? `<label class="field">⏰ أول مراجعة
+        <select id="edFirst">
+          <option value="1" selected>غداً إن شاء الله (موصى به)</option>
+          <option value="0">اليوم (بعد بضع ساعات)</option>
+        </select>
+      </label>` : ""}
+    </div>
+    <footer class="sheet-foot">
+      ${isNew ? "" : `<button type="button" class="btn danger" data-action="delete">🗑️ حذف</button>`}
+      <span class="grow"></span>
+      <button type="button" class="btn" data-action="close">إلغاء</button>
+      <button type="submit" class="btn primary">💾 حفظ</button>
+    </footer>
+  </form>`;
+}
+
+function metaHTML(p) {
+  if (!(p >= 1 && p <= TOTAL_PAGES)) return `<span class="muted">أدخل رقم الصفحة في مصحف المدينة (1 – ${TOTAL_PAGES})</span>`;
+  const exists = isNew && pages.has(p);
+  return `<b>${surahLabel(p)}</b>
+    <span>الجزء ${juzOfPage(p)} · الحزب ${hizbOfPage(p)} · ${ayahCountOnPage(p)} ${ayahCountOnPage(p) <= 10 && ayahCountOnPage(p) >= 3 ? "آيات" : "آية"}</span>
+    <span class="muted small">${rangeLabel(p)}</span>
+    ${exists ? `<span class="warn">⚠️ هذه الصفحة مسجلة مسبقاً <button type="button" class="link-btn" data-action="open-existing">فتحها للتعديل</button></span>` : ""}`;
+}
+
+const hasKeys = x => !!(x.hook || x.note || x.img);
+
+function ayahListHTML() {
+  if (!draft.ayahs.length) return `<li class="empty muted">لا توجد آيات بعد — اضغط «جلب الآيات» أو اكتبها يدوياً.</li>`;
+  let html = "";
+  let lastSurah = null;
+  draft.ayahs.forEach((x, i) => {
+    if (x.s && x.a === 1 && x.s !== lastSurah) html += `<li class="surah-sep">سورة ${SURAH_NAMES[x.s - 1]}</li>`;
+    lastSurah = x.s;
+    const has = hasKeys(x);
+    html += `<li class="ayah-row ${has ? "open" : ""}" data-i="${i}">
+      <div class="ayah-line">
+        <span class="quran-inline">${esc(x.text)} ${x.a ? `<span class="marker">﴿${arDigits(x.a)}﴾</span>` : ""}</span>
+        <button type="button" class="key-toggle ${has ? "has" : ""}" data-action="toggle-row">${has ? "🔑" : "＋ مفتاح"}</button>
+      </div>
+      <div class="ayah-keys">
+        <input type="text" data-field="hook" data-i="${i}" placeholder="🔗 كلمة الربط لهذه الآية" value="${esc(x.hook)}">
+        <input type="text" data-field="note" data-i="${i}" placeholder="🧠 صورة ذهنية / ملاحظة" value="${esc(x.note)}">
+        <div class="row gap-s">${
+          x.img
+            ? `<img class="thumb" src="${x.img}" alt=""><button type="button" class="btn small danger" data-action="rm-ayah-img" data-i="${i}">حذف الصورة</button>`
+            : `<label class="btn small">🖼️ صورة للآية<input type="file" accept="image/*" hidden data-field="ayah-image" data-i="${i}"></label>`
+        }</div>
+      </div>
+    </li>`;
+  });
+  return html;
+}
+
+function pageImagesHTML() {
+  return draft.images
+    .map((src, i) => `<div class="img-wrap"><img src="${src}" alt=""><button type="button" class="rm" data-action="rm-img" data-i="${i}" aria-label="حذف">✕</button></div>`)
+    .join("");
+}
+
+function setStatus(msg, kind = "") {
+  const el = $("#edStatus");
+  if (!el) return;
+  el.className = "status " + kind;
+  el.innerHTML = msg;
+}
+
+// ---------- جلب الآيات ----------
+async function loadText(p) {
+  const token = ++fetchToken;
+  setStatus("⏳ جارٍ جلب آيات الصفحة…");
+  try {
+    const ayahs = await getPageAyahs(p);
+    if (token !== fetchToken || +draft.page !== p) return;
+    // نحتفظ بالمفاتيح المكتوبة سابقاً لنفس الآيات
+    const old = new Map(draft.ayahs.filter(x => x.s).map(x => [`${x.s}:${x.a}`, x]));
+    draft.ayahs = ayahs.map(a => ({ ...(old.get(`${a.s}:${a.a}`) || {}), ...a }));
+    const cue = firstWords(draft.ayahs[0]?.text, 5);
+    if (!draft.cue || draft.cue === autoCue) {
+      draft.cue = cue;
+      const el = $("#edCue");
+      if (el) el.value = cue;
+    }
+    autoCue = cue;
+    $("#edAyahs").innerHTML = ayahListHTML();
+    setStatus(`✓ تم جلب ${ayahs.length} آية`, "ok");
+  } catch {
+    if (token !== fetchToken) return;
+    setStatus("⚠️ تعذر الجلب (تحقق من الاتصال بالإنترنت). يمكنك كتابة الآيات يدوياً.", "warn");
+  }
+}
+
+// ---------- الحفظ والحذف ----------
+function cleanAyah(x) {
+  const o = { ...x };
+  for (const k of ["hook", "note"]) {
+    o[k] = (o[k] || "").trim();
+    if (!o[k]) delete o[k];
+  }
+  if (!o.img) delete o.img;
+  return o;
+}
+
+async function save() {
+  const p = +draft.page;
+  if (!(p >= 1 && p <= TOTAL_PAGES)) {
+    setStatus(`⚠️ رقم الصفحة يجب أن يكون بين 1 و ${TOTAL_PAGES}`, "warn");
+    $("#edPage").focus();
+    return;
+  }
+  const existing = pages.get(p);
+  if (isNew && existing && !confirm(`الصفحة ${p} مسجلة مسبقاً. استبدال آياتها ومفاتيحها بهذه (مع الاحتفاظ بتقدم المراجعة)؟`)) return;
+  const firstReview = +($("#edFirst")?.value ?? 1);
+  const rec = {
+    ...(existing || {}),
+    page: p,
+    ayahs: draft.ayahs.map(cleanAyah),
+    cue: (draft.cue || "").trim() || firstWords(draft.ayahs[0]?.text, 5),
+    links: draft.links,
+    notes: (draft.notes || "").trim(),
+    images: draft.images,
+    createdAt: existing?.createdAt || new Date().toISOString(),
+    srs: existing?.srs || newCard(todayStr(), firstReview),
+  };
+  try {
+    await savePage(rec);
+  } catch {
+    toast("تعذر الحفظ — ربما مساحة التخزين ممتلئة");
+    return;
+  }
+  dlg().close();
+  toast(isNew ? `تم تسجيل الصفحة ${p} ✓ ${firstReview ? "أول مراجعة غداً" : "ستظهر في مراجعة اليوم"} إن شاء الله` : "تم الحفظ ✓");
+  refresh();
+}
+
+async function remove() {
+  const p = +draft.page;
+  if (!confirm(`حذف الصفحة ${p} مع مفاتيحها وكل تقدم مراجعتها؟`)) return;
+  await removePage(p);
+  dlg().close();
+  toast("تم الحذف");
+  refresh();
+}
+
+async function addImages(files, onEach) {
+  for (const f of files) {
+    try {
+      onEach(await compressImage(f));
+    } catch {
+      toast("تعذر قراءة الصورة");
+    }
+  }
+}
+
+// ---------- الأحداث ----------
+const d = dlg();
+
+delegate(d, {
+  close: () => d.close(),
+  fetch: () => {
+    const p = +draft.page;
+    if (p >= 1 && p <= TOTAL_PAGES) loadText(p);
+    else setStatus("⚠️ أدخل رقم صفحة صحيح أولاً", "warn");
+  },
+  manual: () => {
+    const box = $("#edManual");
+    box.hidden = !box.hidden;
+    if (!box.hidden) {
+      $("#edManualText").value = ayahsToText(draft.ayahs);
+      $("#edManualText").focus();
+    }
+  },
+  "apply-manual": () => {
+    const parsed = parseManualText($("#edManualText").value);
+    draft.ayahs = parsed.map((x, i) => {
+      const o = draft.ayahs[i];
+      return o ? { ...o, ...x, s: o.a === x.a ? o.s : null } : x;
+    });
+    if (!draft.cue || draft.cue === autoCue) {
+      draft.cue = autoCue = firstWords(draft.ayahs[0]?.text, 5);
+      $("#edCue").value = draft.cue;
+    }
+    $("#edAyahs").innerHTML = ayahListHTML();
+    $("#edManual").hidden = true;
+    setStatus(`✓ ${draft.ayahs.length} آية`, "ok");
+  },
+  "toggle-row": el => el.closest(".ayah-row").classList.toggle("open"),
+  "rm-ayah-img": el => {
+    delete draft.ayahs[+el.dataset.i].img;
+    $("#edAyahs").innerHTML = ayahListHTML();
+  },
+  "rm-img": el => {
+    draft.images.splice(+el.dataset.i, 1);
+    $("#edImages").innerHTML = pageImagesHTML();
+  },
+  "open-existing": () => openEditor(+draft.page),
+  delete: remove,
+});
+
+d.addEventListener("submit", e => {
+  e.preventDefault();
+  save();
+});
+
+d.addEventListener("input", e => {
+  const t = e.target;
+  if (t.id === "edPage") {
+    clearTimeout(pageTimer);
+    pageTimer = setTimeout(() => {
+      const p = +t.value;
+      draft.page = t.value ? p : "";
+      $("#edMeta").innerHTML = metaHTML(p);
+      setStatus("");
+      if (p >= 1 && p <= TOTAL_PAGES) {
+        draft.ayahs = [];
+        $("#edAyahs").innerHTML = ayahListHTML();
+        loadText(p);
+      }
+    }, 450);
+  } else if (t.id === "edCue") draft.cue = t.value;
+  else if (t.id === "edLinks") draft.links = lines(t.value);
+  else if (t.id === "edNotes") draft.notes = t.value;
+  else if (t.dataset.field === "hook" || t.dataset.field === "note") {
+    draft.ayahs[+t.dataset.i][t.dataset.field] = t.value;
+    const row = t.closest(".ayah-row");
+    const btn = row.querySelector(".key-toggle");
+    const has = hasKeys(draft.ayahs[+t.dataset.i]);
+    btn.classList.toggle("has", has);
+    btn.textContent = has ? "🔑" : "＋ مفتاح";
+  }
+});
+
+d.addEventListener("change", async e => {
+  const t = e.target;
+  if (t.id === "edImageInput") {
+    await addImages(t.files, src => draft.images.push(src));
+    t.value = "";
+    $("#edImages").innerHTML = pageImagesHTML();
+  } else if (t.dataset.field === "ayah-image" && t.files[0]) {
+    const i = +t.dataset.i;
+    await addImages([t.files[0]], src => (draft.ayahs[i].img = src));
+    $("#edAyahs").innerHTML = ayahListHTML();
+  }
+});

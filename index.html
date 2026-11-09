@@ -3,211 +3,51 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>متابعة حفظ القرآن</title>
-  <meta name="description" content="تطبيق لمتابعة حفظ القرآن الكريم بتقنيات الاسترجاع النشط والتكرار المتباعد">
+  <title>QURAN MEMORISATION — حفظ القرآن</title>
+  <meta name="description" content="متابعة حفظ القرآن الكريم بتقنيات الاسترجاع النشط والتكرار المتباعد">
   <meta name="theme-color" content="#0f5132">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="icons/icon.svg">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Amiri+Quran&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
+  <script type="module" src="js/main.js"></script>
 </head>
 <body>
   <header class="topbar">
-    <h1>📖 حفظ القرآن</h1>
-    <span class="today" id="todayLabel"></span>
+    <div class="brand">
+      <img src="icons/icon.svg" alt="" width="34" height="34">
+      <div>
+        <h1>QURAN MEMORISATION</h1>
+        <small>متابعة حفظ القرآن الكريم</small>
+      </div>
+    </div>
+    <div class="dates">
+      <span id="hijriLabel"></span>
+      <span id="todayLabel"></span>
+    </div>
   </header>
 
-  <main id="app">
-    <!-- ===== الرئيسية ===== -->
-    <section id="view-home" class="view active">
-      <div class="card hero">
-        <p class="basmala">بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ</p>
-        <div class="stats">
-          <div class="stat"><b id="statDue">0</b><span>للمراجعة اليوم</span></div>
-          <div class="stat"><b id="statPages">0</b><span>صفحة محفوظة</span></div>
-          <div class="stat"><b id="statStreak">0</b><span>أيام متتالية</span></div>
-          <div class="stat"><b id="statToday">0</b><span>مراجعة اليوم</span></div>
-        </div>
-        <div class="progress"><div class="bar" id="progressBar"></div></div>
-        <p class="muted center" id="progressLabel"></p>
-        <button class="btn primary big" id="startReviewBtn">ابدأ المراجعة</button>
-        <button class="btn ghost" id="quickAddBtn">＋ حفظت صفحة جديدة</button>
-      </div>
-
-      <div class="card">
-        <h2>المراجعات القادمة</h2>
-        <ul class="upcoming" id="upcomingList"></ul>
-      </div>
-
-      <div class="card tips">
-        <h2>كيف يعمل التطبيق؟</h2>
-        <ol>
-          <li><b>سجّل الصفحة</b> التي حفظتها: رقمها، نص الآيات، كلمات الربط، والصور الذهنية التي ساعدتك.</li>
-          <li><b>الاسترجاع النشط:</b> عند المراجعة يُعرض عليك رقم الصفحة وبدايتها فقط، فتسمّعها من ذاكرتك قبل أن ترى النص.</li>
-          <li><b>التكرار المتباعد:</b> حسب تقييمك (نسيت / صعب / جيد / سهل) يحدد التطبيق موعد المراجعة القادمة: الصفحات الضعيفة تتكرر أكثر، والقوية تتباعد.</li>
-        </ol>
-      </div>
-    </section>
-
-    <!-- ===== المراجعة ===== -->
-    <section id="view-review" class="view">
-      <div class="card" id="reviewEmpty" hidden>
-        <h2>✅ لا توجد مراجعات مستحقة الآن</h2>
-        <p class="muted">بارك الله فيك. يمكنك حفظ صفحة جديدة أو مراجعة صفحة اختيارياً.</p>
-        <button class="btn" id="extraReviewBtn">مراجعة إضافية (أضعف الصفحات)</button>
-      </div>
-
-      <div id="reviewCard" hidden>
-        <div class="review-head">
-          <span class="pill" id="reviewCounter"></span>
-          <span class="pill soft" id="reviewMeta"></span>
-        </div>
-
-        <div class="card">
-          <div class="page-badge">صفحة <b id="rvPage"></b></div>
-          <p class="center muted" id="rvSurah"></p>
-
-          <!-- مرحلة 1: الاسترجاع -->
-          <div id="stageRecall">
-            <p class="instruction">🎙️ سمّع الصفحة من ذاكرتك بصوت مسموع، ثم اكشف الإجابة.</p>
-            <div class="cue" id="rvCue"></div>
-            <div class="hints" id="rvHints"></div>
-            <div class="row wrap">
-              <button class="btn" id="hintBtn">💡 تلميح (كلمة ربط)</button>
-              <button class="btn" id="clozeBtn">🧩 اختبار الفراغات</button>
-            </div>
-            <div class="quran cloze" id="rvCloze" hidden></div>
-            <button class="btn primary big" id="revealBtn">أظهر الإجابة</button>
-          </div>
-
-          <!-- مرحلة 2: الإجابة والتقييم -->
-          <div id="stageAnswer" hidden>
-            <div class="quran" id="rvText"></div>
-            <div id="rvLinksWrap"><h3>🔗 كلمات الربط</h3><div class="chips" id="rvLinks"></div></div>
-            <div id="rvNotesWrap"><h3>🧠 الصورة الذهنية / ملاحظات</h3><p id="rvNotes" class="notes"></p></div>
-            <div class="images" id="rvImages"></div>
-            <div id="rvNextWrap" class="next-link"></div>
-
-            <h3 class="center">كيف كان استرجاعك؟</h3>
-            <div class="grades">
-              <button class="grade g0" data-grade="0">نسيت<small></small></button>
-              <button class="grade g1" data-grade="1">صعب<small></small></button>
-              <button class="grade g2" data-grade="2">جيد<small></small></button>
-              <button class="grade g3" data-grade="3">سهل<small></small></button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ===== صفحاتي ===== -->
-    <section id="view-pages" class="view">
-      <div class="card">
-        <div class="row between">
-          <h2>المصحف (604 صفحة)</h2>
-          <button class="btn primary" id="addPageBtn">＋ إضافة صفحة</button>
-        </div>
-        <div class="legend">
-          <span><i class="lv none"></i>غير محفوظة</span>
-          <span><i class="lv due"></i>مستحقة</span>
-          <span><i class="lv weak"></i>ضعيفة</span>
-          <span><i class="lv mid"></i>متوسطة</span>
-          <span><i class="lv strong"></i>راسخة</span>
-        </div>
-        <div class="grid" id="mushafGrid"></div>
-      </div>
-    </section>
-
-    <!-- ===== الإعدادات ===== -->
-    <section id="view-settings" class="view">
-      <div class="card">
-        <h2>النسخ الاحتياطي</h2>
-        <p class="muted">البيانات محفوظة في متصفحك على هذا الجهاز. صدّرها بانتظام حتى لا تضيع، ويمكنك استيرادها على جهاز آخر.</p>
-        <div class="row wrap">
-          <button class="btn" id="exportBtn">⬇️ تصدير (JSON)</button>
-          <label class="btn">⬆️ استيراد<input type="file" id="importInput" accept="application/json" hidden></label>
-        </div>
-      </div>
-      <div class="card">
-        <h2>إعدادات المراجعة</h2>
-        <label class="field">الحد الأقصى للمراجعات في الجلسة
-          <input type="number" id="setMaxReviews" min="1" max="200">
-        </label>
-        <label class="field">أقصى مدة بين مراجعتين (بالأيام)
-          <input type="number" id="setMaxInterval" min="7" max="365">
-        </label>
-        <button class="btn primary" id="saveSettingsBtn">حفظ</button>
-      </div>
-      <div class="card danger-zone">
-        <h2>منطقة الخطر</h2>
-        <button class="btn danger" id="wipeBtn">حذف كل البيانات</button>
-      </div>
-    </section>
+  <main>
+    <section id="view-home" class="view"></section>
+    <section id="view-review" class="view"></section>
+    <section id="view-pages" class="view"></section>
+    <section id="view-settings" class="view"></section>
   </main>
 
-  <!-- ===== نافذة إضافة / تعديل صفحة ===== -->
-  <dialog id="pageDialog">
-    <form method="dialog" id="pageForm">
-      <div class="row between">
-        <h2 id="dialogTitle">إضافة صفحة محفوظة</h2>
-        <button type="button" class="icon-btn" id="closeDialog" aria-label="إغلاق">✕</button>
-      </div>
-
-      <div class="row">
-        <label class="field grow">رقم الصفحة
-          <input type="number" id="fPage" min="1" max="604" required inputmode="numeric">
-        </label>
-        <label class="field grow">السورة
-          <input type="text" id="fSurah" placeholder="تُملأ تلقائياً">
-        </label>
-      </div>
-
-      <button type="button" class="btn" id="fetchTextBtn">🌐 جلب نص الصفحة تلقائياً</button>
-      <small class="muted" id="fetchStatus"></small>
-
-      <label class="field">نص الآيات (آية في كل سطر)
-        <textarea id="fText" rows="6" class="quran-input" placeholder="اكتب أو الصق الآيات، أو اجلبها تلقائياً"></textarea>
-      </label>
-
-      <label class="field">بداية الصفحة (المفتاح الذي يظهر عند المراجعة)
-        <input type="text" id="fCue" placeholder="مثال: وَإِذْ قَالَ رَبُّكَ لِلْمَلَائِكَةِ">
-      </label>
-
-      <label class="field">🔗 كلمات الربط (كلمة أو عبارة في كل سطر)
-        <textarea id="fLinks" rows="3" placeholder="الكلمات التي تربط بها الآيات ببعضها"></textarea>
-      </label>
-
-      <label class="field">🧠 الصورة الذهنية / القصة / ملاحظات
-        <textarea id="fNotes" rows="3" placeholder="كيف تخيلت الآيات؟ ما القصة التي ربطتها بها؟"></textarea>
-      </label>
-
-      <div class="field">🖼️ صور مساعدة
-        <div class="images edit" id="fImages"></div>
-        <label class="btn">＋ إضافة صورة<input type="file" id="fImageInput" accept="image/*" multiple hidden></label>
-      </div>
-
-      <div class="row between">
-        <button type="button" class="btn danger" id="deletePageBtn" hidden>حذف</button>
-        <button type="submit" class="btn primary" id="savePageBtn">حفظ</button>
-      </div>
-    </form>
-  </dialog>
+  <dialog id="editorDialog" class="sheet"></dialog>
+  <dialog id="detailDialog" class="sheet"></dialog>
+  <dialog id="rangeDialog" class="sheet"></dialog>
 
   <nav class="tabbar">
-    <button data-view="home" class="active"><span>🏠</span>الرئيسية</button>
-    <button data-view="review"><span>🔁</span>المراجعة<em class="badge" id="navBadge" hidden></em></button>
-    <button data-view="pages"><span>📚</span>صفحاتي</button>
-    <button data-view="settings"><span>⚙️</span>الإعدادات</button>
+    <button data-view="home"><span aria-hidden="true">🏠</span>الرئيسية</button>
+    <button data-view="review"><span aria-hidden="true">🔁</span>المراجعة<em class="badge" id="navBadge" hidden></em></button>
+    <button data-view="pages"><span aria-hidden="true">📚</span>المصحف</button>
+    <button data-view="settings"><span aria-hidden="true">⚙️</span>الإعدادات</button>
   </nav>
 
-  <div class="toast" id="toast"></div>
-
-  <script src="js/surahs.js"></script>
-  <script src="js/db.js"></script>
-  <script src="js/srs.js"></script>
-  <script src="js/app.js"></script>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
 </body>
 </html>
