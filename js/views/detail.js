@@ -41,7 +41,8 @@ export function openDetail(p) {
       <button type="button" class="icon-btn" data-action="close" aria-label="إغلاق">✕</button>
     </header>
     <div class="sheet-body">
-      <p class="muted">${esc(surahLabel(p))} · الجزء ${juzOfPage(p)} · الحزب ${hizbOfPage(p)}<br><small>${rangeLabel(p)}</small></p>
+      <p class="muted">${esc(surahLabel(p))} · الجزء ${juzOfPage(p)} · الحزب ${hizbOfPage(p)}<br><small>${rangeLabel(p)}</small>
+        · <button type="button" class="link-btn small" data-action="change-number">رقم الصفحة خاطئ؟ غيّره</button></p>
       <p class="next-review">⏰ المراجعة القادمة: <b>${relativeDay(s.due, t)}</b></p>
 
       ${galleryHTML(imgs, "map", "🗺️ الخريطة الذهنية للوجه", "gallery big")}
@@ -131,6 +132,10 @@ delegate(dlg(), {
     dlg().close();
     const rec = pages.get(pageNo);
     startSession({ pages: [pageNo], extra: !isDue(rec.srs) });
+  },
+  "change-number": () => {
+    dlg().close();
+    openEditor(pageNo, { changeNumber: true });
   },
   "add-tadabbur": () => openNoteEditor({ kind: "tadabbur", page: pageNo, onSaved: reopen }),
   "edit-tadabbur": el => openNoteEditor({ kind: "tadabbur", page: pageNo, id: el.dataset.id, onSaved: reopen }),

@@ -555,3 +555,8 @@ dialog.lightbox:has(.lb-note) img { max-height: 58dvh; }
 @media (prefers-reduced-motion: reduce) {
   *, .view.active { animation: none !important; transition: none !important; }
 }
+
+/* ---------- تغيير رقم الصفحة ---------- */
+.change-num { display: block; font-size: .85rem; margin-top: 4px; padding: 2px 0; }
+.move-note { color: var(--gold); font-weight: 700; }
+.link-btn.small { font-size: .82rem; padding: 0; }

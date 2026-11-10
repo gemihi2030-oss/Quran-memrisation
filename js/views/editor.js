@@ -3,7 +3,7 @@ import { $, esc, lines, toast, delegate, compressImage } from "../util.js";
 import { pages, savePage, removePage, suggestNextPage } from "../state.js";
 import {
   TOTAL_PAGES, getPageAyahs, surahLabel, juzOfPage, hizbOfPage, rangeLabel, ayahCountOnPage,
-  firstWords, arDigits, parseManualText, ayahsToText, SURAH_NAMES,
+  firstWords, arDigits, parseManualText, ayahsToText, SURAH_NAMES, pageRange,
 } from "../quran.js";
 import { newCard, todayStr } from "../srs.js";
 import { parseTime, formatTime, safeUrl, sourceLink } from "../media.js";
@@ -16,20 +16,53 @@ let isNew = false;
 let fetchToken = 0;
 let autoCue = ""; // آخر بداية صفحة وُلّدت تلقائياً (نستبدلها فقط إن لم يعدّلها المستخدم)
 let pageTimer = 0;
+let origPage = null;
+let origAyahs = [];
+let origCue = "";
 
-export function openEditor(pageNo) {
+// changeNumber: يفتح النافذة وحقل رقم الصفحة جاهز للتغيير (لتصحيح رقم خاطئ)
+export function openEditor(pageNo, { changeNumber = false } = {}) {
   const rec = pageNo ? pages.get(+pageNo) : null;
   isNew = !rec;
   draft = rec
     ? structuredClone(rec)
     : { page: pageNo ? +pageNo : suggestNextPage(), ayahs: [], cue: "", links: [], notes: "", images: [], maps: [] };
   if (!Array.isArray(draft.maps)) draft.maps = [];
+  // الرقم الأصلي للصفحة المسجلة: لنقلها إن غُيّر الرقم، ولاستعادة آياتها إن رجع إليه
+  origPage = rec ? rec.page : null;
+  origAyahs = rec ? structuredClone(rec.ayahs) : [];
+  origCue = rec ? rec.cue : "";
   autoCue = draft.ayahs[0] ? firstWords(draft.ayahs[0].text, 5) : "";
   render();
   if (!dlg().open) dlg().showModal();
   const p = +draft.page;
   if (p && !draft.ayahs.length) loadText(p);
   if (isNew && !p) $("#edPage").focus();
+  if (!isNew && changeNumber) enableNumberChange();
+}
+
+function enableNumberChange() {
+  const inp = $("#edPage");
+  inp.readOnly = false;
+  inp.focus();
+  inp.select();
+  $("#changeNumBtn")?.remove();
+  if (!$("#moveHint")) {
+    dlg().querySelector(".row.top").insertAdjacentHTML(
+      "afterend",
+      `<p class="hint" id="moveHint">✏️ اكتب رقم الصفحة الصحيح ثم اضغط «حفظ». تنتقل الصور وكلمات الربط والملاحظات والتدبر وتقدم المراجعة إلى الرقم الجديد.</p>`
+    );
+  }
+}
+
+const isMoving = p => !isNew && p !== origPage;
+
+// هل الآية (سورة، آية) ضمن الصفحة p؟
+function ayahInPage(p, s, a) {
+  if (!s || !a) return true; // لا نعرف السورة (نص يدوي) ← نُبقيها
+  const { from, to } = pageRange(p);
+  const cmp = (x, y) => x[0] - y[0] || x[1] - y[1];
+  return cmp([s, a], from) >= 0 && cmp([s, a], to) <= 0;
 }
 
 // ---------- القوالب ----------
@@ -45,6 +78,7 @@ function render() {
       <div class="row top">
         <label class="field page-field">رقم الصفحة
           <input type="number" id="edPage" min="1" max="${TOTAL_PAGES}" inputmode="numeric" value="${esc(draft.page)}" ${isNew ? "" : "readonly"}>
+          ${isNew ? "" : `<button type="button" class="link-btn change-num" id="changeNumBtn" data-action="change-number">✏️ تغيير الرقم</button>`}
         </label>
         <div class="page-meta" id="edMeta">${metaHTML(p)}</div>
       </div>
@@ -105,11 +139,17 @@ function render() {
 
 function metaHTML(p) {
   if (!(p >= 1 && p <= TOTAL_PAGES)) return `<span class="muted">أدخل رقم الصفحة في مصحف المدينة (1 – ${TOTAL_PAGES})</span>`;
+  const moving = isMoving(p);
+  if (moving && pages.has(p)) {
+    return `<b>${surahLabel(p)}</b>
+      <span class="warn">⚠️ الصفحة ${p} مسجلة مسبقاً — اختر رقماً آخر، أو احذف تلك الصفحة أولاً.</span>`;
+  }
   const exists = isNew && pages.has(p);
   return `<b>${surahLabel(p)}</b>
     <span>الجزء ${juzOfPage(p)} · الحزب ${hizbOfPage(p)} · ${ayahCountOnPage(p)} ${ayahCountOnPage(p) <= 10 && ayahCountOnPage(p) >= 3 ? "آيات" : "آية"}</span>
     <span class="muted small">${rangeLabel(p)}</span>
-    ${exists ? `<span class="warn">⚠️ هذه الصفحة مسجلة مسبقاً <button type="button" class="link-btn" data-action="open-existing">فتحها للتعديل</button></span>` : ""}`;
+    ${exists ? `<span class="warn">⚠️ هذه الصفحة مسجلة مسبقاً <button type="button" class="link-btn" data-action="open-existing">فتحها للتعديل</button></span>` : ""}
+    ${moving ? `<span class="move-note">🔁 ستُنقل الصفحة ${origPage} إلى الصفحة ${p} عند الحفظ</span>` : ""}`;
 }
 
 const hasKeys = x => !!(x.hook || x.note || x.img);
@@ -219,7 +259,7 @@ async function loadText(p) {
     }
     autoCue = cue;
     $("#edAyahs").innerHTML = ayahListHTML();
-    setStatus(`✓ تم جلب ${ayahs.length} آية`, "ok");
+    setStatus(`✓ تم جلب ${ayahs.length} ${ayahs.length >= 3 && ayahs.length <= 10 ? "آيات" : "آية"}`, "ok");
   } catch {
     if (token !== fetchToken) return;
     setStatus("⚠️ تعذر الجلب (تحقق من الاتصال بالإنترنت). يمكنك كتابة الآيات يدوياً.", "warn");
@@ -244,8 +284,23 @@ async function save() {
     $("#edPage").focus();
     return;
   }
-  const existing = pages.get(p);
+  const moving = isMoving(p);
+  if (moving && pages.has(p)) {
+    setStatus(`⚠️ الصفحة ${p} مسجلة مسبقاً — اختر رقماً آخر، أو احذف تلك الصفحة أولاً.`, "warn");
+    $("#edPage").focus();
+    return;
+  }
+  // عند تعديل صفحة (أو نقلها) نبني على سجلها الأصلي، فيبقى تقدم المراجعة والتدبر
+  const existing = isNew ? pages.get(p) : pages.get(origPage);
   if (isNew && existing && !confirm(`الصفحة ${p} مسجلة مسبقاً. استبدال آياتها ومفاتيحها بهذه (مع الاحتفاظ بتقدم المراجعة)؟`)) return;
+  if (moving) {
+    const lostKeys = origAyahs.filter(x => x.hook || x.note || x.img).length;
+    const msg =
+      `نقل الصفحة ${origPage} إلى الصفحة ${p}؟\n` +
+      `تنتقل الصور وكلمات الربط والملاحظات والتدبر وتقدم المراجعة، وتُحذف الصفحة ${origPage}.` +
+      (lostKeys ? `\n⚠️ مفاتيح ${lostKeys} آية من آيات الصفحة ${origPage} لن تنتقل (آيات الصفحة ${p} مختلفة).` : "");
+    if (!confirm(msg)) return;
+  }
   const firstReview = +($("#edFirst")?.value ?? 1);
   const rec = {
     ...(existing || {}),
@@ -259,8 +314,17 @@ async function save() {
     createdAt: existing?.createdAt || new Date().toISOString(),
     srs: existing?.srs || newCard(todayStr(), firstReview),
   };
+  if (moving) {
+    // تدبر مرتبط بآية ليست في الصفحة الجديدة ← يصبح للصفحة كاملة
+    rec.tadabbur = (existing.tadabbur || []).map(t => {
+      if (ayahInPage(p, t.s, t.a)) return t;
+      const { a, s, ...rest } = t;
+      return rest;
+    });
+  }
   try {
-    await savePage(rec);
+    await savePage(rec); // نحفظ الجديدة أولاً، ثم نحذف القديمة، حتى لا يضيع شيء
+    if (moving) await removePage(origPage);
   } catch {
     toast("تعذر الحفظ — ربما مساحة التخزين ممتلئة");
     return;
@@ -269,12 +333,19 @@ async function save() {
   refresh();
   // نعرض الصفحة المحفوظة مباشرة حتى ترى صورك ومفاتيحك
   if (current() !== "review") openDetail(p);
-  toast(isNew ? `تم تسجيل الصفحة ${p} ✓ ${firstReview ? "أول مراجعة غداً" : "ستظهر في مراجعة اليوم"} إن شاء الله` : "تم الحفظ ✓");
+  toast(
+    isNew
+      ? `تم تسجيل الصفحة ${p} ✓ ${firstReview ? "أول مراجعة غداً" : "ستظهر في مراجعة اليوم"} إن شاء الله`
+      : moving
+        ? `تم نقل الصفحة ${origPage} إلى الصفحة ${p} ✓`
+        : "تم الحفظ ✓"
+  );
 }
 
 async function remove() {
-  const p = +draft.page;
-  if (!confirm(`حذف الصفحة ${p} مع مفاتيحها وكل تقدم مراجعتها؟`)) return;
+  // دائماً الصفحة المسجلة الأصلية، حتى لو كُتب رقم آخر في الحقل
+  const p = origPage;
+  if (!p || !confirm(`حذف الصفحة ${p} مع مفاتيحها وكل تقدم مراجعتها؟`)) return;
   await removePage(p);
   dlg().close();
   toast("تم الحذف");
@@ -347,6 +418,7 @@ delegate(d, {
     setStatus(`✓ نُقلت الصورة إلى ${to === "maps" ? "الخريطة الذهنية" : "صور التربيط"} — اضغط «حفظ»`, "ok");
   },
   "open-existing": () => openEditor(+draft.page),
+  "change-number": enableNumberChange,
   delete: remove,
 });
 
@@ -364,7 +436,14 @@ d.addEventListener("input", e => {
       draft.page = t.value ? p : "";
       $("#edMeta").innerHTML = metaHTML(p);
       setStatus("");
-      if (p >= 1 && p <= TOTAL_PAGES) {
+      if (!isNew && p === origPage) {
+        // رجع إلى الرقم الأصلي: نستعيد آيات الصفحة ومفاتيحها كما كانت
+        draft.ayahs = structuredClone(origAyahs);
+        draft.cue = origCue;
+        autoCue = draft.ayahs[0] ? firstWords(draft.ayahs[0].text, 5) : "";
+        $("#edCue").value = draft.cue;
+        $("#edAyahs").innerHTML = ayahListHTML();
+      } else if (p >= 1 && p <= TOTAL_PAGES) {
         draft.ayahs = [];
         $("#edAyahs").innerHTML = ayahListHTML();
         loadText(p);
