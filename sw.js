@@ -1,5 +1,5 @@
 // عامل الخدمة: يجعل التطبيق يعمل دون إنترنت
-const CACHE = "quran-mem-v2.6.0";
+const CACHE = "quran-mem-v2.7.0";
 const ASSETS = [
   "./", "index.html", "css/style.css", "manifest.webmanifest",
   "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png",

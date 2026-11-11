@@ -1,7 +1,7 @@
 // 💡 تدبر الآيات (لكل صفحة) و 💚 التحفيز (لكل التطبيق)
 // نافذة واحدة للإضافة/التعديل: نص + صورة (لقطة شاشة لمنشور مثلاً) + المصدر (رابط أو اسم كتاب) + الوقت في الفيديو
 import { $, esc, toast, delegate, compressImage } from "../util.js";
-import { pages, savePage, motivations, saveMotivations, newId } from "../state.js";
+import { pages, savePage, motivations, saveMotivations, newId, settings, saveSettings } from "../state.js";
 import { firstWords, arDigits, SURAH_NAMES } from "../quran.js";
 import { safeUrl, parseTime, formatTime, sourceLink } from "../media.js";
 import { todayStr, parseDate } from "../srs.js";
@@ -47,10 +47,23 @@ export function tadabburListHTML(rec, { editable = false } = {}) {
     .join("");
 }
 
+// وضع العرض: "both" = الصورة مع النص · "img" = الصورة فقط (النص يبقى ظاهراً إن لم توجد صورة)
+export const motivImgOnly = () => settings.motivView === "img";
+export async function toggleMotivView() {
+  settings.motivView = motivImgOnly() ? "both" : "img";
+  saveSettings();
+}
+export function motivViewButtonHTML() {
+  const only = motivImgOnly();
+  const label = only ? "عرض الصورة مع النص" : "عرض الصورة فقط";
+  return `<button type="button" class="icon-btn" data-action="toggle-motiv-view" aria-label="${label}" title="${label}" aria-pressed="${only}">${only ? "📝" : "🖼️"}</button>`;
+}
+
 export function motivationItemHTML(m, { editable = false } = {}) {
+  const showText = m.text && !(m.img && motivImgOnly());
   return `<article class="motiv-item">
     ${m.img ? `<button type="button" class="motiv-img" data-action="view-motivation" data-id="${m.id}"><img src="${m.img}" alt="" loading="lazy"></button>` : ""}
-    ${m.text ? `<p class="motiv-text clamp" data-action="expand">${esc(m.text)}</p>` : ""}
+    ${showText ? `<p class="motiv-text clamp" data-action="expand">${esc(m.text)}</p>` : ""}
     <div class="row between wrap">${noteSourceHTML(m)}${editable ? `<button type="button" class="icon-btn small" data-action="edit-motivation" data-id="${m.id}" aria-label="تعديل">✏️</button>` : ""}</div>
   </article>`;
 }
@@ -61,9 +74,14 @@ export function motivationOfDay(step = 0) {
   if (!motivations.length) return null;
   motivOffset += step;
   const day = Math.floor(parseDate(todayStr()) / 86400000);
-  const n = motivations.length;
-  return motivations[(((day + motivOffset) % n) + n) % n];
+  return motivations[motivationIndex(day)];
 }
+function motivationIndex(day = Math.floor(parseDate(todayStr()) / 86400000)) {
+  const n = motivations.length;
+  return (((day + motivOffset) % n) + n) % n;
+}
+// موضع التحفيز المعروض حالياً (للعدّاد: 1 / 3)
+export const motivationPosition = () => (motivations.length ? motivationIndex() + 1 : 0);
 export const randomMotivation = () => (motivations.length ? motivations[Math.floor(Math.random() * motivations.length)] : null);
 
 // ---------- نافذة الإضافة / التعديل ----------
@@ -260,6 +278,8 @@ function renderList() {
   listDlg().innerHTML = `
     <header class="sheet-head">
       <h2>💚 التحفيز (${motivations.length})</h2>
+      <span class="grow"></span>
+      ${motivations.some(m => m.img && m.text) ? motivViewButtonHTML() : ""}
       <button type="button" class="icon-btn" data-action="close" aria-label="إغلاق">✕</button>
     </header>
     <div class="sheet-body">
@@ -277,13 +297,24 @@ delegate(ld, {
   "add-motivation": () => openNoteEditor({ kind: "motivation", onSaved: () => ld.open && renderList() }),
   "edit-motivation": el => openNoteEditor({ kind: "motivation", id: el.dataset.id, onSaved: () => ld.open && renderList() }),
   "view-motivation": el => viewMotivation(el.dataset.id),
+  "toggle-motiv-view": () => {
+    toggleMotivView();
+    renderList();
+    document.dispatchEvent(new CustomEvent("motiv-view-changed"));
+  },
   expand: el => el.classList.toggle("clamp"),
 });
 
 // ---------- عرض الصور بحجم الشاشة ----------
+// يفتح كل صور التحفيز معاً، فيمكن التنقل بينها يميناً وشمالاً داخل العارض
 export function viewMotivation(id) {
-  const m = motivations.find(x => x.id === id);
-  if (m?.img) openGallery([{ src: m.img, caption: "💚 تحفيز", note: m.text, url: safeUrl(m.source) ? m.source : "", time: m.time }]);
+  const withImg = motivations.filter(m => m.img);
+  const start = withImg.findIndex(m => m.id === id);
+  if (start < 0) return;
+  openGallery(
+    withImg.map(m => ({ src: m.img, caption: "💚 تحفيز", note: motivImgOnly() ? "" : m.text, url: safeUrl(m.source) ? m.source : "", time: m.time })),
+    start
+  );
 }
 
 export function viewTadabburImage(page, id) {

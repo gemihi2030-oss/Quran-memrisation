@@ -11,6 +11,7 @@ export const DEFAULTS = {
   autoCue: true,       // إظهار بداية الصفحة تلقائياً عند المراجعة
   quranSize: 1.5,      // حجم خط الآيات (rem)
   theme: "auto",       // auto | light | dark
+  motivView: "both",   // عرض التحفيز: both = الصورة مع النص، img = الصورة فقط
 };
 export const settings = { ...DEFAULTS, ...Store.get("settings", {}) };
 
