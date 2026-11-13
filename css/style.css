@@ -499,6 +499,9 @@ dialog.lightbox:has(.lb-note) img { max-height: 58dvh; }
 .motiv-card { border-color: var(--ok); background: linear-gradient(180deg, var(--primary-soft), var(--surface) 70%); }
 .motiv-card h2 { margin: 0; }
 .motiv-card .motiv-text { font-size: 1.02rem; }
+.motiv-nav { display: flex; align-items: center; justify-content: center; gap: 18px; margin: 4px 0 8px; }
+.motiv-arrow { width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 1.3rem; cursor: pointer; }
+.motiv-arrow:hover { background: var(--surface-2); }
 .motiv-item { border-bottom: 1px solid var(--border); padding: 8px 0; }
 .motiv-item:last-child { border: 0; }
 .done-motiv { text-align: start; margin-top: 14px; background: var(--primary-soft); border-radius: 12px; padding: 10px 12px; }

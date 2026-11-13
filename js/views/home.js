@@ -1,7 +1,7 @@
 // الشاشة الرئيسية: الإحصائيات، المراجعات القادمة، الأجزاء، الصفحات الضعيفة
 import { $, esc, delegate } from "../util.js";
 import { pages, dueList, streak, retention, todayCount, weakPages, motivations } from "../state.js";
-import { motivationOfDay, motivationItemHTML, openNoteEditor, openMotivationList, viewMotivation } from "./notes.js";
+import { motivationOfDay, motivationPosition, motivViewButtonHTML, toggleMotivView, motivationItemHTML, openNoteEditor, openMotivationList, viewMotivation } from "./notes.js";
 import { Store } from "../db.js";
 import { TOTAL_PAGES, juzRange, surahLabel, firstSurahOfPage } from "../quran.js";
 import { todayStr, addDays, daysBetween, parseDate, relativeDay } from "../srs.js";
@@ -91,11 +91,16 @@ function motivationHTML(step = 0) {
     <div class="row between">
       <h2>💚 تحفيز اليوم</h2>
       <div class="row gap-s">
-        ${motivations.length > 1 ? `<button class="icon-btn" data-action="next-motivation" aria-label="التالي" title="التالي">↻</button>` : ""}
+        ${m.img && m.text ? motivViewButtonHTML() : ""}
         <button class="icon-btn" data-action="add-motivation" aria-label="إضافة" title="إضافة">＋</button>
       </div>
     </div>
     ${motivationItemHTML(m)}
+    ${motivations.length > 1 ? `<div class="motiv-nav">
+      <button class="motiv-arrow" data-action="prev-motivation" aria-label="السابق" title="السابق">→</button>
+      <span class="muted small">${motivationPosition()} / ${motivations.length}</span>
+      <button class="motiv-arrow" data-action="next-motivation" aria-label="التالي" title="التالي">←</button>
+    </div>` : ""}
     <button class="link-btn" data-action="all-motivation">عرض الكل (${motivations.length}) ←</button>
   </div>`;
 }
@@ -224,6 +229,13 @@ delegate(root(), {
   "next-motivation": () => {
     $("#motivCard").outerHTML = motivationHTML(1);
   },
+  "prev-motivation": () => {
+    $("#motivCard").outerHTML = motivationHTML(-1);
+  },
+  "toggle-motiv-view": () => {
+    toggleMotivView();
+    $("#motivCard").outerHTML = motivationHTML();
+  },
   "all-motivation": () => openMotivationList(),
   "view-motivation": el => viewMotivation(el.dataset.id),
   expand: el => el.classList.toggle("clamp"),
@@ -237,4 +249,10 @@ root().addEventListener("keydown", e => {
     e.preventDefault();
     openDetail(+e.target.dataset.page);
   }
+});
+
+// تغيير وضع العرض من قائمة التحفيز ينعكس على بطاقة الرئيسية
+document.addEventListener("motiv-view-changed", () => {
+  const card = $("#motivCard");
+  if (card) card.outerHTML = motivationHTML();
 });
