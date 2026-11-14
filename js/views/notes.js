@@ -28,6 +28,33 @@ export function sortedTadabbur(rec) {
   return [...(rec.tadabbur || [])].sort((x, y) => (x.s || 0) - (y.s || 0) || (x.a || 0) - (y.a || 0) || String(x.createdAt).localeCompare(String(y.createdAt)));
 }
 
+// طريقة العرض: display = "image" ← الصورة فقط (النص يبقى محفوظاً للبحث)، وإلا الصورة مع النص
+export const showText = item => !!item.text && !(item.img && item.display === "image");
+
+// زر سريع للتبديل بين «الصورة فقط» و«الصورة مع النص»
+function displayToggleHTML(item, kind, page = "") {
+  if (!item.img || !item.text) return "";
+  const imageOnly = item.display === "image";
+  return `<button type="button" class="chip-btn display-toggle" data-action="toggle-display" data-kind="${kind}" data-id="${item.id}" data-page="${page}">${imageOnly ? "📝 إظهار النص" : "🖼️ الصورة فقط"}</button>`;
+}
+
+export async function toggleDisplay(kind, id, page) {
+  if (kind === "tadabbur") {
+    const rec = pages.get(+page);
+    const t = rec?.tadabbur.find(x => x.id === id);
+    if (!t) return;
+    if (t.display === "image") delete t.display;
+    else t.display = "image";
+    await savePage(rec);
+  } else {
+    const m = motivations.find(x => x.id === id);
+    if (!m) return;
+    if (m.display === "image") delete m.display;
+    else m.display = "image";
+    await saveMotivations();
+  }
+}
+
 // قائمة التدبرات في بطاقة الصفحة أو المراجعة
 export function tadabburListHTML(rec, { editable = false } = {}) {
   return sortedTadabbur(rec)
@@ -39,30 +66,31 @@ export function tadabburListHTML(rec, { editable = false } = {}) {
           ${editable ? `<button type="button" class="icon-btn small" data-action="edit-tadabbur" data-id="${t.id}" aria-label="تعديل">✏️</button>` : ""}
         </div>
         ${ayah ? `<p class="quran-inline tad-ayah">${esc(firstWords(ayah.text, 8))}…</p>` : ""}
-        ${t.text ? `<p class="tad-text clamp" data-action="expand">${esc(t.text)}</p>` : ""}
+        ${showText(t) ? `<p class="tad-text clamp" data-action="expand">${esc(t.text)}</p>` : ""}
         ${t.img ? `<button type="button" class="tad-img" data-action="view-note-img" data-page="${rec.page}" data-id="${t.id}"><img src="${t.img}" alt="" loading="lazy"></button>` : ""}
-        ${noteSourceHTML(t)}
+        <div class="row between wrap">${noteSourceHTML(t)}${editable ? displayToggleHTML(t, "tadabbur", rec.page) : ""}</div>
       </article>`;
     })
     .join("");
 }
 
-export function motivationItemHTML(m, { editable = false } = {}) {
+// toggle: زر «الصورة فقط / إظهار النص» · editable: زر التعديل
+export function motivationItemHTML(m, { editable = false, toggle = false } = {}) {
   return `<article class="motiv-item">
     ${m.img ? `<button type="button" class="motiv-img" data-action="view-motivation" data-id="${m.id}"><img src="${m.img}" alt="" loading="lazy"></button>` : ""}
-    ${m.text ? `<p class="motiv-text clamp" data-action="expand">${esc(m.text)}</p>` : ""}
-    <div class="row between wrap">${noteSourceHTML(m)}${editable ? `<button type="button" class="icon-btn small" data-action="edit-motivation" data-id="${m.id}" aria-label="تعديل">✏️</button>` : ""}</div>
+    ${showText(m) ? `<p class="motiv-text clamp" data-action="expand">${esc(m.text)}</p>` : ""}
+    <div class="row between wrap">${noteSourceHTML(m)}<span class="row gap-s">${toggle || editable ? displayToggleHTML(m, "motivation") : ""}${editable ? `<button type="button" class="icon-btn small" data-action="edit-motivation" data-id="${m.id}" aria-label="تعديل">✏️</button>` : ""}</span></div>
   </article>`;
 }
 
-// تحفيز اليوم: يتغير كل يوم (ويمكن تقليبه)
-let motivOffset = 0;
-export function motivationOfDay(step = 0) {
-  if (!motivations.length) return null;
-  motivOffset += step;
-  const day = Math.floor(parseDate(todayStr()) / 86400000);
+// تحفيز اليوم: يبدأ كل يوم بعنصر مختلف، والأزرار تتنقل بينها
+let motivCursor = null;
+export function currentMotivation(step = 0) {
   const n = motivations.length;
-  return motivations[(((day + motivOffset) % n) + n) % n];
+  if (!n) return null;
+  if (motivCursor === null) motivCursor = Math.floor(parseDate(todayStr()) / 86400000) % n;
+  motivCursor = (((motivCursor + step) % n) + n) % n;
+  return { item: motivations[motivCursor], index: motivCursor, total: n };
 }
 export const randomMotivation = () => (motivations.length ? motivations[Math.floor(Math.random() * motivations.length)] : null);
 
@@ -137,9 +165,14 @@ function render() {
 
 function imgHTML() {
   const { draft } = ctx;
-  return draft.img
-    ? `<div class="img-wrap note-img"><img src="${draft.img}" alt=""><button type="button" class="rm" data-action="rm-note-img" aria-label="حذف">✕</button></div>`
-    : `<label class="btn add-img">📷 إضافة صورة<input type="file" accept="image/*" hidden id="ntImgInput"></label>`;
+  if (!draft.img) return `<label class="btn add-img">📷 إضافة صورة<input type="file" accept="image/*" hidden id="ntImgInput"></label>`;
+  const imageOnly = draft.display === "image";
+  return `<div class="img-wrap note-img"><img src="${draft.img}" alt=""><button type="button" class="rm" data-action="rm-note-img" aria-label="حذف">✕</button></div>
+    <fieldset class="radios display-choice">
+      <legend>طريقة العرض</legend>
+      <label><input type="radio" name="ntDisplay" value="both" ${imageOnly ? "" : "checked"}> 🖼️+📝 الصورة مع النص</label>
+      <label><input type="radio" name="ntDisplay" value="image" ${imageOnly ? "checked" : ""}> 🖼️ الصورة فقط <small class="muted">(النص يبقى محفوظاً للبحث)</small></label>
+    </fieldset>`;
 }
 
 function hint() {
@@ -165,6 +198,7 @@ async function save() {
   const time = (draft.time || "").trim();
   const item = { id: draft.id, text, createdAt: draft.createdAt, updatedAt: new Date().toISOString() };
   if (draft.img) item.img = draft.img;
+  if (draft.img && draft.display === "image") item.display = "image";
   // رابط بلا مسافات ← نخزّنه كرابط كامل؛ غير ذلك ← اسم كتاب كما كُتب
   if (src) item.source = !/\s/.test(src) && /[./]/.test(src) && safeUrl(src) ? safeUrl(src) : src;
   if (time) item.time = parseTime(time) === null ? time : formatTime(parseTime(time));
@@ -239,6 +273,10 @@ d.addEventListener("input", e => {
   }
 });
 d.addEventListener("change", async e => {
+  if (e.target.name === "ntDisplay") {
+    ctx.draft.display = e.target.value;
+    return;
+  }
   if (e.target.id !== "ntImgInput" || !e.target.files[0]) return;
   $("#ntStatus").textContent = "⏳ جارٍ تجهيز الصورة…";
   try {
@@ -277,16 +315,33 @@ delegate(ld, {
   "add-motivation": () => openNoteEditor({ kind: "motivation", onSaved: () => ld.open && renderList() }),
   "edit-motivation": el => openNoteEditor({ kind: "motivation", id: el.dataset.id, onSaved: () => ld.open && renderList() }),
   "view-motivation": el => viewMotivation(el.dataset.id),
+  "toggle-display": async el => {
+    await toggleDisplay("motivation", el.dataset.id);
+    renderList();
+    refresh();
+  },
   expand: el => el.classList.toggle("clamp"),
 });
 
 // ---------- عرض الصور بحجم الشاشة ----------
+// كل صور التحفيز في العارض، يبدأ من الصورة المضغوطة، وتتنقل بينها يميناً ويساراً
 export function viewMotivation(id) {
-  const m = motivations.find(x => x.id === id);
-  if (m?.img) openGallery([{ src: m.img, caption: "💚 تحفيز", note: m.text, url: safeUrl(m.source) ? m.source : "", time: m.time }]);
+  const withImg = motivations.filter(m => m.img);
+  const start = withImg.findIndex(m => m.id === id);
+  if (start < 0) return;
+  openGallery(
+    withImg.map(m => ({
+      src: m.img,
+      caption: "💚 تحفيز",
+      note: showText(m) ? m.text : "",
+      url: safeUrl(m.source) ? m.source : "",
+      time: m.time,
+    })),
+    start
+  );
 }
 
 export function viewTadabburImage(page, id) {
   const t = pages.get(page)?.tadabbur.find(x => x.id === id);
-  if (t?.img) openGallery([{ src: t.img, caption: `💡 تدبر · ${ayahLabel(t)} · الصفحة ${page}`, note: t.text, url: safeUrl(t.source) ? t.source : "", time: t.time }]);
+  if (t?.img) openGallery([{ src: t.img, caption: `💡 تدبر · ${ayahLabel(t)} · الصفحة ${page}`, note: showText(t) ? t.text : "", url: safeUrl(t.source) ? t.source : "", time: t.time }]);
 }

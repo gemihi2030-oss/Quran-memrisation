@@ -7,7 +7,7 @@ import { openEditor } from "./editor.js";
 import { startSession } from "./review.js";
 import { LEVEL_LABELS, allImages, sourceButtonHTML } from "./cards.js";
 import { openGallery } from "./lightbox.js";
-import { openNoteEditor, tadabburListHTML, viewTadabburImage } from "./notes.js";
+import { openNoteEditor, tadabburListHTML, viewTadabburImage, toggleDisplay } from "./notes.js";
 
 const dlg = () => $("#detailDialog");
 let pageNo = 0;
@@ -140,6 +140,10 @@ delegate(dlg(), {
   "add-tadabbur": () => openNoteEditor({ kind: "tadabbur", page: pageNo, onSaved: reopen }),
   "edit-tadabbur": el => openNoteEditor({ kind: "tadabbur", page: pageNo, id: el.dataset.id, onSaved: reopen }),
   "view-note-img": el => viewTadabburImage(pageNo, el.dataset.id),
+  "toggle-display": async el => {
+    await toggleDisplay("tadabbur", el.dataset.id, pageNo);
+    reopen();
+  },
   expand: el => el.classList.toggle("clamp"),
   "view-img": el => {
     const imgs = dlg()._imgs.map(im => ({ ...im, caption: captionOf(im, pageNo) }));

@@ -560,3 +560,10 @@ dialog.lightbox:has(.lb-note) img { max-height: 58dvh; }
 .change-num { display: block; font-size: .85rem; margin-top: 4px; padding: 2px 0; }
 .move-note { color: var(--gold); font-weight: 700; }
 .link-btn.small { font-size: .82rem; padding: 0; }
+
+/* ---------- عرض الصورة فقط / مع النص + التنقل بين عناصر التحفيز ---------- */
+.motiv-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 10px 0 4px; }
+.motiv-nav .btn { min-width: 104px; font-weight: 700; }
+.display-toggle { font-size: .8rem; padding: 3px 10px; }
+.display-choice { margin-top: 8px; }
+.display-choice label { font-size: .92rem; }

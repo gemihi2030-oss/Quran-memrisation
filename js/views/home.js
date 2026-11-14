@@ -1,7 +1,7 @@
 // الشاشة الرئيسية: الإحصائيات، المراجعات القادمة، الأجزاء، الصفحات الضعيفة
 import { $, esc, delegate } from "../util.js";
 import { pages, dueList, streak, retention, todayCount, weakPages, motivations } from "../state.js";
-import { motivationOfDay, motivationItemHTML, openNoteEditor, openMotivationList, viewMotivation } from "./notes.js";
+import { currentMotivation, motivationItemHTML, openNoteEditor, openMotivationList, viewMotivation, toggleDisplay } from "./notes.js";
 import { Store } from "../db.js";
 import { TOTAL_PAGES, juzRange, surahLabel, firstSurahOfPage } from "../quran.js";
 import { todayStr, addDays, daysBetween, parseDate, relativeDay } from "../srs.js";
@@ -77,28 +77,36 @@ function nextDueLabel(t) {
   return next ? relativeDay(next, t) : "—";
 }
 
-// 💚 تحفيز اليوم (يتغير كل يوم، و↻ لعرض غيره)
+// 💚 تحفيز اليوم: يبدأ كل يوم بعنصر مختلف، والأزرار (أو السحب بالإصبع) تتنقل بين العناصر
 function motivationHTML(step = 0) {
-  const m = motivationOfDay(step);
-  if (!m) {
+  const cur = currentMotivation(step);
+  if (!cur) {
     return `<div class="card motiv-card empty">
       <h2>💚 تحفيز</h2>
       <p class="muted small">احفظ هنا ما يحفّزك على الحفظ والمراجعة: قصة، حديث، مقولة، صورة… سيظهر لك واحد كل يوم.</p>
       <button class="btn" data-action="add-motivation">＋ إضافة تحفيز</button>
     </div>`;
   }
+  const { item, index, total } = cur;
   return `<div class="card motiv-card" id="motivCard">
     <div class="row between">
       <h2>💚 تحفيز اليوم</h2>
-      <div class="row gap-s">
-        ${motivations.length > 1 ? `<button class="icon-btn" data-action="next-motivation" aria-label="التالي" title="التالي">↻</button>` : ""}
-        <button class="icon-btn" data-action="add-motivation" aria-label="إضافة" title="إضافة">＋</button>
-      </div>
+      <button class="icon-btn" data-action="add-motivation" aria-label="إضافة" title="إضافة">＋</button>
     </div>
-    ${motivationItemHTML(m)}
-    <button class="link-btn" data-action="all-motivation">عرض الكل (${motivations.length}) ←</button>
+    ${motivationItemHTML(item, { toggle: true })}
+    ${total > 1 ? `<div class="motiv-nav">
+      <button class="btn small" data-action="prev-motivation" aria-label="السابق">→ السابق</button>
+      <span class="muted small">${index + 1} / ${total}</span>
+      <button class="btn small" data-action="next-motivation" aria-label="التالي">التالي ←</button>
+    </div>` : ""}
+    <button class="link-btn" data-action="all-motivation">عرض الكل (${total}) ←</button>
   </div>`;
 }
+
+const swapMotivation = step => {
+  const card = $("#motivCard");
+  if (card) card.outerHTML = motivationHTML(step);
+};
 
 // السورة التي تحفظها الآن (سورة آخر صفحة سجّلتها بنفسك) وتقدمك فيها
 function currentSurahHTML() {
@@ -221,8 +229,11 @@ delegate(root(), {
   "all-pages": () => showPagesList(),
   "add-page": el => openEditor(+el.dataset.page),
   "add-motivation": () => openNoteEditor({ kind: "motivation" }),
-  "next-motivation": () => {
-    $("#motivCard").outerHTML = motivationHTML(1);
+  "next-motivation": () => swapMotivation(1),
+  "prev-motivation": () => swapMotivation(-1),
+  "toggle-display": async el => {
+    await toggleDisplay("motivation", el.dataset.id);
+    swapMotivation(0);
   },
   "all-motivation": () => openMotivationList(),
   "view-motivation": el => viewMotivation(el.dataset.id),
@@ -230,6 +241,18 @@ delegate(root(), {
   "surah-pages": el => showPagesList({ surah: +el.dataset.s }),
   "surah-maps": el => showPagesList({ surah: +el.dataset.s, view: "maps" }),
   "open-page": el => openDetail(+el.dataset.page),
+});
+
+// السحب بالإصبع على بطاقة التحفيز (في الاتجاه العربي: نحو اليمين = التالي)
+let motivTouchX = null;
+root().addEventListener("touchstart", e => {
+  motivTouchX = e.target.closest("#motivCard") ? e.touches[0].clientX : null;
+}, { passive: true });
+root().addEventListener("touchend", e => {
+  if (motivTouchX === null) return;
+  const dx = e.changedTouches[0].clientX - motivTouchX;
+  motivTouchX = null;
+  if (Math.abs(dx) > 60 && motivations.length > 1) swapMotivation(dx > 0 ? 1 : -1);
 });
 
 root().addEventListener("keydown", e => {
