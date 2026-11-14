@@ -567,3 +567,35 @@ dialog.lightbox:has(.lb-note) img { max-height: 58dvh; }
 .display-toggle { font-size: .8rem; padding: 3px 10px; }
 .display-choice { margin-top: 8px; }
 .display-choice label { font-size: .92rem; }
+
+/* ---------- تبويب الخرائط الذهنية: صورة كبيرة + سهمان يمين ويسار ---------- */
+.tabbar { grid-template-columns: repeat(5, 1fr); }
+.tabbar button { font-size: .72rem; }
+.maps-view h2 { margin: 0; }
+.mv-stage {
+  position: relative; margin: 12px -6px 8px; border-radius: 14px; overflow: hidden;
+  background: var(--surface-2); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center; min-height: 240px; touch-action: pan-y;
+}
+.mv-stage img { display: block; width: 100%; max-height: 62dvh; object-fit: contain; cursor: zoom-in; }
+.mv-arrow {
+  position: absolute; top: 50%; transform: translateY(-50%); z-index: 2;
+  width: 48px; height: 48px; border-radius: 50%; border: 0; cursor: pointer;
+  background: rgba(15, 81, 50, .85); color: #fff; font-size: 2rem; line-height: 1; padding-bottom: 4px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.3); display: grid; place-items: center;
+}
+.mv-arrow:disabled { opacity: .25; cursor: default; }
+.mv-arrow:not(:disabled):active { transform: translateY(-50%) scale(.92); }
+.mv-prev { right: 8px; }
+.mv-next { left: 8px; }
+.mv-count { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.6); color: #fff; font-size: .8rem; font-weight: 700; border-radius: 99px; padding: 1px 10px; }
+.mv-caption { text-align: center; font-size: 1rem; }
+.mv-caption b { color: var(--gold); }
+.mv-note { margin: 8px 0; }
+.mv-strip { display: flex; gap: 6px; overflow-x: auto; padding: 8px 2px 4px; margin-top: 8px; scroll-snap-type: x proximity; }
+.mv-thumb { position: relative; flex: none; width: 64px; height: 84px; padding: 0; border: 2px solid transparent; border-radius: 8px; overflow: hidden; background: var(--surface-2); cursor: pointer; scroll-snap-align: center; opacity: .7; }
+.mv-thumb.on { border-color: var(--gold); opacity: 1; }
+.mv-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mv-thumb span { position: absolute; bottom: 2px; inset-inline: 2px; background: rgba(0,0,0,.6); color: #fff; font-size: .68rem; border-radius: 6px; text-align: center; }
+.lb-stage { position: relative; width: 100%; display: flex; align-items: center; justify-content: center; }
+.lb-stage .mv-arrow { background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.35); }

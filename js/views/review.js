@@ -516,7 +516,7 @@ function guidedNext(ok) {
 // اختصارات لوحة المفاتيح على الحاسوب: مسافة = إظهار، 1-4 = التقييم
 document.addEventListener("keydown", e => {
   if (current() !== "review" || !session?.cur || document.querySelector("dialog[open]")) return;
-  if (e.target.matches("input, textarea, select, button, [role=button]")) return;
+  if (e.target.matches?.("input, textarea, select, button, [role=button]")) return;
   const { stage } = session.cur;
   if (e.key === " " || e.key === "Enter") {
     const btn = root().querySelector('[data-action="g-reveal"]') || root().querySelector('[data-action="reveal"]');

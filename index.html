@@ -21,7 +21,7 @@
       var files = ["index.html", "css/style.css", "manifest.webmanifest", "js/main.js", "js/util.js", "js/db.js", "js/srs.js",
         "js/state.js", "js/router.js", "js/quran.js", "js/quran-meta.js", "js/media.js", "js/views/home.js", "js/views/review.js",
         "js/views/mushaf.js", "js/views/editor.js", "js/views/detail.js", "js/views/range.js", "js/views/settings.js",
-        "js/views/cards.js", "js/views/lightbox.js", "js/views/notes.js"];
+        "js/views/cards.js", "js/views/lightbox.js", "js/views/notes.js", "js/views/maps.js"];
       Promise.all(files.map(function (f) { return fetch(f, { cache: "reload" }).catch(function () {}); }))
         .then(function () { location.reload(); });
     };
@@ -51,6 +51,7 @@
     <section id="view-home" class="view"></section>
     <section id="view-review" class="view"></section>
     <section id="view-pages" class="view"></section>
+    <section id="view-maps" class="view"></section>
     <section id="view-settings" class="view"></section>
   </main>
 
@@ -65,6 +66,7 @@
     <button data-view="home"><span aria-hidden="true">🏠</span>الرئيسية</button>
     <button data-view="review"><span aria-hidden="true">🔁</span>المراجعة<em class="badge" id="navBadge" hidden></em></button>
     <button data-view="pages"><span aria-hidden="true">📚</span>صفحاتي</button>
+    <button data-view="maps"><span aria-hidden="true">🗺️</span>الخرائط</button>
     <button data-view="settings"><span aria-hidden="true">⚙️</span>الإعدادات</button>
   </nav>
 

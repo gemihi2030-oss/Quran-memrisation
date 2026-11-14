@@ -23,11 +23,14 @@ function render() {
   const many = items.length > 1;
   dlg().innerHTML = `
     <button type="button" class="icon-btn lb-close" data-lb="close" aria-label="إغلاق">✕</button>
-    <img src="${it.src}" alt="${esc(it.caption || "")}">
+    <div class="lb-stage">
+      <img src="${it.src}" alt="${esc(it.caption || "")}">
+      ${many ? `
+        <button type="button" class="mv-arrow mv-prev" data-lb="prev" aria-label="السابقة" ${idx === 0 ? "disabled" : ""}>›</button>
+        <button type="button" class="mv-arrow mv-next" data-lb="next" aria-label="التالية" ${idx === items.length - 1 ? "disabled" : ""}>‹</button>` : ""}
+    </div>
     <div class="lb-bar">
-      ${many ? `<button type="button" class="lb-btn" data-lb="prev" ${idx === 0 ? "disabled" : ""}>→ السابقة</button>` : ""}
       <span class="lb-cap">${esc(it.caption || "")}${many ? ` <small>(${idx + 1} / ${items.length})</small>` : ""}</span>
-      ${many ? `<button type="button" class="lb-btn" data-lb="next" ${idx === items.length - 1 ? "disabled" : ""}>التالية ←</button>` : ""}
     </div>
     ${it.note ? `<p class="lb-note">📝 ${esc(it.note)}</p>` : ""}
     <div class="lb-actions">

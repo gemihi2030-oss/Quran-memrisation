@@ -11,12 +11,13 @@ import { show } from "../router.js";
 import { openEditor } from "./editor.js";
 import { openRange } from "./range.js";
 import { openDetail } from "./detail.js";
-import { openGallery } from "./lightbox.js";
+import { showMaps } from "./maps.js";
 import { pageCardHTML, allImages, mapImages, linkImages, allLinks, lastTouched, surahProgress } from "./cards.js";
 
 const root = () => $("#view-pages");
 let mode = Store.get("pagesMode", "list"); // list | maps | grid
 if (mode === "map") mode = "grid"; // اسم قديم
+if (mode === "maps") mode = "list"; // الخرائط صار لها تبويب خاص
 let gridFilter = "all";
 let listFilter = "all";
 let sort = Store.get("pagesSort", "surah"); // surah | recent | mushaf
@@ -25,7 +26,6 @@ let query = "";
 
 export function renderMushaf() {
   if (mode === "grid") renderGrid();
-  else if (mode === "maps") renderMaps();
   else renderList();
 }
 
@@ -35,7 +35,7 @@ function headerHTML() {
   return `
     <div class="seg three" role="tablist">
       ${tab("list", `📋 صفحاتي (${pages.size})`)}
-      ${tab("maps", `🗺️ الخرائط (${nMaps})`)}
+      <button data-action="open-maps-tab" role="tab">🗺️ الخرائط (${nMaps})</button>
       ${tab("grid", "🔢 المصحف")}
     </div>
     <div class="add-row">
@@ -145,54 +145,6 @@ function renderList() {
     <div class="plist" id="plist">${listBodyHTML()}</div>`;
 }
 
-// ---------- الخرائط الذهنية في مكان واحد ----------
-function mapItems() {
-  const items = [];
-  const recs = [...pages.values()]
-    .filter(r => mapImages(r).length && (!surahFilter || firstSurahOfPage(r.page) === surahFilter))
-    .sort((a, b) => a.page - b.page);
-  for (const r of recs) {
-    for (const im of mapImages(r)) {
-      items.push({ ...im, page: r.page, surah: firstSurahOfPage(r.page), caption: `الصفحة ${r.page} · ${surahLabel(r.page)}` });
-    }
-  }
-  return items;
-}
-
-function renderMaps() {
-  const items = mapItems();
-  const withMaps = surahsWithPages(r => mapImages(r).length > 0);
-  let body = "";
-  if (!items.length) {
-    body = `<div class="empty-state">
-      <div class="big-emoji">🗺️</div>
-      <p>${surahFilter ? "لا توجد خرائط ذهنية في هذه السورة بعد." : "لم تضف أي خريطة ذهنية بعد."}</p>
-      <p class="muted small">افتح صفحة ← «✏️ تعديل» ← «📷 إضافة خريطة ذهنية». ستُجمع كل خرائطك هنا مرتبة حسب السورة.</p>
-    </div>`;
-  } else {
-    let cur = 0;
-    let open = false;
-    items.forEach((it, i) => {
-      if (it.surah !== cur) {
-        if (open) body += `</div>`;
-        body += surahHeadHTML(it.surah) + `<div class="maps-grid">`;
-        cur = it.surah;
-        open = true;
-      }
-      body += `<button type="button" class="map-tile" data-action="view-map" data-i="${i}">
-        <img src="${it.src}" alt="" loading="lazy"><span>ص ${it.page}</span>${it.url || it.note ? `<i class="src-badge">${it.note ? "📝" : ""}${it.url ? "▶️" : ""}</i>` : ""}</button>`;
-    });
-    if (open) body += `</div>`;
-  }
-  root().innerHTML = `
-    <div class="card">
-      ${headerHTML()}
-      ${withMaps.length > 1 || surahFilter ? `<div class="row gap-s toolbar">${surahSelectHTML("mapSurahFilter", withMaps)}</div>` : ""}
-      ${items.length ? `<p class="muted small">اضغط على أي خريطة لعرضها بحجم الشاشة، ثم اسحب يميناً ويساراً للتنقل بينها.</p>` : ""}
-    </div>
-    <div class="card maps-card">${body}</div>`;
-}
-
 // ---------- خريطة المصحف (604) ----------
 const LEGEND = [
   ["none", "غير محفوظة"],
@@ -264,6 +216,7 @@ export function scrollToJuz(j) {
 
 // فتح «صفحاتي»، اختيارياً على سورة معيّنة
 export function showPagesList({ surah = 0, view = "list" } = {}) {
+  if (view === "maps") return showMaps({ surah });
   setMode(view);
   surahFilter = surah;
   query = "";
@@ -288,7 +241,7 @@ delegate(root(), {
   },
   cell: el => openPage(+el.dataset.page),
   "open-page": el => openDetail(+el.dataset.page),
-  "view-map": el => openGallery(mapItems(), +el.dataset.i, { onOpenPage: p => openDetail(p) }),
+  "open-maps-tab": () => showMaps(),
 });
 
 root().addEventListener("input", e => {
@@ -307,9 +260,6 @@ root().addEventListener("change", e => {
   } else if (t.id === "surahFilter") {
     surahFilter = +t.value;
     $("#plist").innerHTML = listBodyHTML();
-  } else if (t.id === "mapSurahFilter") {
-    surahFilter = +t.value;
-    renderMaps();
   }
 });
 

@@ -10,6 +10,7 @@ import { openEditor } from "./editor.js";
 import { openRange } from "./range.js";
 import { startSession } from "./review.js";
 import { scrollToJuz, showPagesList } from "./mushaf.js";
+import { showMaps } from "./maps.js";
 import { openDetail } from "./detail.js";
 import { pageCardHTML, lastTouched, surahProgress } from "./cards.js";
 
@@ -239,7 +240,7 @@ delegate(root(), {
   "view-motivation": el => viewMotivation(el.dataset.id),
   expand: el => el.classList.toggle("clamp"),
   "surah-pages": el => showPagesList({ surah: +el.dataset.s }),
-  "surah-maps": el => showPagesList({ surah: +el.dataset.s, view: "maps" }),
+  "surah-maps": el => showMaps({ surah: +el.dataset.s }),
   "open-page": el => openDetail(+el.dataset.page),
 });
 
