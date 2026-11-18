@@ -857,6 +857,7 @@ dialog.lightbox:has(.lb-note) img { max-height: 58dvh; }
   position: sticky; inset-inline-start: 0; z-index: 2; background: var(--surface);
   width: 118px; min-width: 118px; max-width: 118px; text-align: start; padding-inline-end: 6px;
   color: var(--muted); font-weight: 700; font-size: .7rem;
+  box-shadow: 0 0 0 2px var(--surface); /* يغطي الفراغ بين الخانات حتى لا تظهر الأعمدة من تحته */
 }
 .hb-grid tbody .nm > div { display: flex; align-items: center; justify-content: space-between; gap: 4px; height: 24px; }
 .hb-grid tbody .nm span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-size: .74rem; font-weight: 600; }
