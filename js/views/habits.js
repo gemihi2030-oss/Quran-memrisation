@@ -660,7 +660,7 @@ function monthHTML() {
       <p class="muted small hb-grid-hint">اضغط على المربع لتعليم البند في ذلك اليوم، وعلى رقم اليوم لفتحه. اسحب الجدول يميناً ويساراً.</p>
       <h4 class="hb-ptitle">📈 منحنى التقدّم</h4>
       ${trendHTML({ values: scores, cols: dayCols, empty: "لا توجد أيام من الخطة في هذا الشهر بعد." })}
-      <h4 class="hb-ptitle">✅ عدد البنود المنجزة يومياً</h4>
+      <h4 class="hb-ptitle">✅ عدد العادات المنجزة يومياً</h4>
       ${trendHTML({ values: doneCounts, cols: dayCols, max: mainRows.length, ticks: [mainRows.length, Math.round(mainRows.length / 2)], unit: "", empty: "لا توجد أيام من الخطة في هذا الشهر بعد." })}
       ${counted ? topsHTML(rows, rateOf) : ""}
     </div>`;
