@@ -99,3 +99,12 @@ export function fmtHijri(d = new Date()) {
     return "";
   }
 }
+
+// زر التبديل بين العرض المفصّل والمصغّر (كما في تطبيقات القوائم): data-mode = detail | compact
+const ICON_DETAIL = `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="3" y="13" width="7" height="7" rx="1.5"/><path d="M14 6h7M14 9.5h4.5M14 15h7M14 18.5h4.5"/></svg>`;
+const ICON_COMPACT = `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>`;
+export function viewToggleHTML(action, current) {
+  const b = (mode, icon, label) =>
+    `<button type="button" class="${current === mode ? "on" : ""}" data-action="${action}" data-mode="${mode}" aria-pressed="${current === mode}" aria-label="${label}" title="${label}">${icon}</button>`;
+  return `<div class="view-toggle" role="group" aria-label="طريقة العرض">${b("detail", ICON_DETAIL, "عرض مفصّل")}${b("compact", ICON_COMPACT, "عرض مصغّر")}</div>`;
+}

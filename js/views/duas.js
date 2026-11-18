@@ -1,6 +1,6 @@
 // 🤲 أدعيتي: قائمة أدعية شخصية سهلة القراءة — مجمّعة حسب الموضوع، مرقّمة، بخط كبير قابل للتكبير
 // القراءة: تضغط على الدعاء بعد أن تدعو به فيُعلَّم (يُنسى في اليوم التالي) · التعديل: نص، موضوع، ترتيب، حذف، إضافة
-import { $, esc, delegate, toast } from "../util.js";
+import { $, esc, delegate, toast, viewToggleHTML } from "../util.js";
 import { habits, saveHabits, newId } from "../state.js";
 import { Store } from "../db.js";
 import { todayStr } from "../srs.js";
@@ -12,6 +12,7 @@ const SIZE_MIN = 1;
 const SIZE_MAX = 2.25;
 let size = Store.get("duaSize", 1.3);
 let editing = false;
+let view = Store.get("duasView", "detail"); // detail = بطاقات بخط كبير · compact = أسطر متقاربة بخط أصغر
 let date = todayStr(); // اليوم الذي يُسجَّل فيه «الدعاء» في عاداتي
 let onChange = null; // لإعادة رسم الشاشة التي فُتحت منها القائمة
 let lastCat = "other";
@@ -79,12 +80,11 @@ function render() {
   const t = ticks();
   const k = habits.duas.filter(d => t.has(d.id)).length;
   dlg().style.setProperty("--dua-size", size + "rem");
+  dlg().classList.toggle("dua-compact", !editing && view === "compact");
   dlg().innerHTML = `
     <header class="sheet-head">
       <h2>🤲 أدعيتي${total ? ` <small class="muted">(${total})</small>` : ""}</h2>
       <div class="dua-tools">
-        ${editing ? "" : `<button type="button" class="icon-btn dua-size" data-action="dua-size" data-d="-1" aria-label="تصغير الخط" ${size <= SIZE_MIN ? "disabled" : ""}>أ<small>−</small></button>
-        <button type="button" class="icon-btn dua-size" data-action="dua-size" data-d="1" aria-label="تكبير الخط" ${size >= SIZE_MAX ? "disabled" : ""}>أ<small>+</small></button>`}
         ${total ? `<button type="button" class="btn small${editing ? " primary" : ""}" data-action="dua-edit">${editing ? "✓ تم" : "✏️ تعديل"}</button>` : ""}
         <button type="button" class="icon-btn" data-action="close" aria-label="إغلاق">✕</button>
       </div>
@@ -100,7 +100,13 @@ function rerender() {
 }
 
 function readHTML(groups, t) {
-  return `<p class="dua-tip">💡 ابدأ بحمد الله والصلاة على النبي ﷺ، وادعُ وأنت موقن بالإجابة. اضغط على الدعاء بعد أن تدعو به.</p>
+  return `<div class="dua-bar">
+      <button type="button" class="icon-btn dua-size" data-action="dua-size" data-d="-1" aria-label="تصغير الخط" ${size <= SIZE_MIN ? "disabled" : ""}>أ<small>−</small></button>
+      <button type="button" class="icon-btn dua-size" data-action="dua-size" data-d="1" aria-label="تكبير الخط" ${size >= SIZE_MAX ? "disabled" : ""}>أ<small>+</small></button>
+      <span class="grow"></span>
+      ${viewToggleHTML("dua-view", view)}
+    </div>
+    <p class="dua-tip">💡 ابدأ بحمد الله والصلاة على النبي ﷺ، وادعُ وأنت موقن بالإجابة. اضغط على الدعاء بعد أن تدعو به.</p>
     ${groups
       .map(g => `<section class="dua-group">
         <h3>${g.icon} ${g.name} <small class="muted">(${g.items.length})</small></h3>
@@ -203,6 +209,11 @@ delegate(dlg(), {
       await markHabit();
       toast("تقبّل الله دعاءك 🤲 · سُجّل «الدعاء» في عاداتي");
     }
+    rerender();
+  },
+  "dua-view": el => {
+    view = el.dataset.mode;
+    Store.set("duasView", view);
     rerender();
   },
   "dua-reset": () => {

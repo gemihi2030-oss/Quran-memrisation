@@ -1,7 +1,7 @@
 // 📿 عاداتي — خطة ملء الصحيفة (75 يوماً قبل رمضان)
 // اليوم: بنود يومية بمربعات (ومربعات صغيرة للصلوات) · ورد القرآن مع قارئ داخل التطبيق
 // الأسبوع: جدول مثل صفحات الخطة + موضوع الأسبوع وأدعيته وملاحظاته · خريطة الأيام الـ75 · إحصائيات · حصاد الخطة
-import { $, esc, delegate, toast } from "../util.js";
+import { $, esc, delegate, toast, viewToggleHTML } from "../util.js";
 import { habits, saveHabits, newId, pages, setQuranList } from "../state.js";
 import { Store } from "../db.js";
 import { todayStr, parseDate } from "../srs.js";
@@ -23,6 +23,7 @@ let viewWeek = null;
 let saveTimer = 0;
 let minimal = Store.get("habitsMinimal", false);
 let qEditOpen = false; // إبقاء «تخصيص بنود القرآن» مفتوحاً بعد الإضافة/الحذف
+let compact = Store.get("habitsView", "detail") === "compact"; // عرض مصغّر: سطر لكل بند، بلا شروح ولا أزرار كبيرة
 
 const fmtDate = (date, opts = { weekday: "long", day: "numeric", month: "long" }) => parseDate(date).toLocaleDateString("ar-DZ", opts);
 const weekdayShort = date => parseDate(date).toLocaleDateString("ar-DZ", { weekday: "short" });
@@ -161,7 +162,7 @@ function checklistHTML() {
             .join("")}</div>`
         : "";
       const extra = h.id === "dua"
-        ? `<button type="button" class="btn small hb-read" data-action="duas">🤲 أدعيتي${habits.duas.length ? ` (${habits.duas.length})` : ""}</button>`
+        ? `<button type="button" class="btn small hb-read" data-action="duas" aria-label="أدعيتي">🤲<span class="lbl"> أدعيتي</span>${habits.duas.length ? ` (${habits.duas.length})` : ""}</button>`
         : "";
       return `<div class="hb-row ${state}${h.optional ? " optional" : ""}" data-action="toggle" data-h="${h.id}">
         <span class="hb-check" aria-hidden="true">${v === 1 ? "✓" : ""}</span>
@@ -186,12 +187,13 @@ function checklistHTML() {
         })
         .join("");
   return `
-    <div class="card hb-list">
-      <div class="row between wrap">
+    <div class="card hb-list${compact ? " compact" : ""}">
+      <div class="row between">
         <h3>✅ بنود اليوم</h3>
-        <label class="check small-check"><input type="checkbox" id="hbMinimal" ${minimal ? "checked" : ""}> 🌱 يوم مزدحم: الحد الأدنى فقط</label>
+        ${viewToggleHTML("hb-view", compact ? "compact" : "detail")}
       </div>
-      <p class="muted small">اضغط على البند عند إتمامه. المربعات الصغيرة: ف فجر · ظ ظهر · ع عصر · م مغرب · ش عشاء.</p>
+      <label class="check small-check"><input type="checkbox" id="hbMinimal" ${minimal ? "checked" : ""}> 🌱 يوم مزدحم: الحد الأدنى فقط</label>
+      <p class="muted small hb-help">اضغط على البند عند إتمامه. المربعات الصغيرة: ف فجر · ظ ظهر · ع عصر · م مغرب · ش عشاء.</p>
       ${rows}${custom}
       ${minimal ? "" : `<details class="hb-add">
         <summary>＋ إضافة عادة خاصة</summary>
@@ -224,12 +226,12 @@ function quranSubHTML(it, entry, date, range) {
   let extra = "";
   if (it.kind === "ward") {
     hint = `ص ${range.from}–${range.to} · ${juzLabel(range)}${viewDay === PLAN_DAYS ? " · وبه تتم الختمة" : ""}`;
-    extra = `<button type="button" class="btn small hb-read" data-action="read" data-id="ward">📖 اقرأ الورد</button>`;
+    extra = `<button type="button" class="btn small hb-read" data-action="read" data-id="ward" aria-label="اقرأ الورد">📖<span class="lbl"> اقرأ الورد</span></button>`;
   } else if (it.kind === "read") {
     const [a, b] = surahPages(it.surah);
     const n = b - a + 1;
     hint = a === b ? `ص ${a}` : `ص ${a}–${b} · ${n} ${n <= 10 ? "صفحات" : "صفحة"}`;
-    extra = `<button type="button" class="btn small hb-read" data-action="read" data-id="${it.id}">📗 اقرأ السورة</button>`;
+    extra = `<button type="button" class="btn small hb-read" data-action="read" data-id="${it.id}" aria-label="اقرأ السورة">📗<span class="lbl"> اقرأ السورة</span></button>`;
   } else {
     const pr = surahProgress(it.surah);
     const [a, b] = surahPages(it.surah);
@@ -237,7 +239,7 @@ function quranSubHTML(it, entry, date, range) {
     hint = `حفظت ${pr.n} من ${pr.total} صفحة (${pr.pct}٪)${added.length ? ` · سجّلت في هذا اليوم: ص ${added.sort((x, y) => x - y).join("، ")}` : ""}`;
     const next = nextHifzPage(it.surah);
     extra = next
-      ? `<button type="button" class="btn small hb-read" data-action="add-page" data-page="${next}">＋ حفظت الصفحة ${next}</button>`
+      ? `<button type="button" class="btn small hb-read" data-action="add-page" data-page="${next}" aria-label="حفظت الصفحة ${next}">＋<span class="lbl"> حفظت الصفحة</span> ${next}</button>`
       : `<p class="hb-hint">🎉 سجّلت كل صفحات السورة — ما شاء الله!</p>`;
   }
   return `<div class="hb-sub${done ? " done" : ""}" data-action="q-toggle" data-id="${it.id}" role="checkbox" aria-checked="${done}" tabindex="0">
@@ -656,6 +658,11 @@ delegate(root(), {
     changed();
   },
   read: el => openReader(viewDay, el.dataset.id),
+  "hb-view": el => {
+    compact = el.dataset.mode === "compact";
+    Store.set("habitsView", el.dataset.mode);
+    renderHabits();
+  },
   duas: () =>
     openDuas({
       date: dateOfDay(habits.plan.start, viewDay),

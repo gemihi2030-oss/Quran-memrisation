@@ -647,8 +647,8 @@ dialog.lightbox:has(.lb-note) img { max-height: 58dvh; }
   flex: none; width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--border);
   display: grid; place-items: center; font-weight: 800; color: #fff; background: var(--surface); margin-top: 2px;
 }
-.hb-row.done .hb-check { background: var(--ok); border-color: var(--ok); }
-.hb-row.part .hb-check { border-color: var(--gold); background: linear-gradient(90deg, var(--gold) 50%, var(--surface) 50%); }
+.hb-row.done > .hb-check { background: var(--ok); border-color: var(--ok); }
+.hb-row.part > .hb-check { border-color: var(--gold); background: linear-gradient(90deg, var(--gold) 50%, var(--surface) 50%); }
 .hb-body { flex: 1; min-width: 0; }
 .hb-name { font-weight: 700; }
 .hb-name .core { font-size: .8rem; }
@@ -776,3 +776,38 @@ dialog.lightbox:has(.lb-note) img { max-height: 58dvh; }
   background: var(--surface); color: var(--text); min-width: 0; max-width: 100%;
 }
 .icon-btn:disabled { opacity: .3; cursor: default; }
+
+/* ---------- العرض المفصّل / المصغّر ---------- */
+.view-toggle { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-2); flex: none; }
+.view-toggle button { display: grid; place-items: center; width: 42px; height: 34px; border: 0; border-radius: 11px; background: none; color: var(--muted); cursor: pointer; }
+.view-toggle button.on { background: var(--primary-soft); color: var(--primary-2); }
+.view-toggle button:hover:not(.on) { color: var(--text); }
+
+/* بنود اليوم مصغّرة: سطر لكل بند */
+.hb-list.compact .hb-help, .hb-list.compact .hb-hint, .hb-list.compact .hb-add { display: none; }
+.hb-list.compact .hb-row { align-items: center; gap: 10px; padding: 7px 10px; margin-top: 6px; border-radius: 12px; }
+.hb-list.compact .hb-check { width: 24px; height: 24px; margin-top: 0; font-size: .8rem; }
+.hb-list.compact .hb-body { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
+.hb-list.compact .hb-name { flex: 1 1 auto; font-size: .93rem; }
+.hb-list.compact .hb-parts { margin: 0; gap: 4px; flex-wrap: nowrap; }
+.hb-list.compact .hb-part { width: 28px; height: 28px; border-radius: 8px; font-size: .78rem; }
+.hb-list.compact .hb-read { margin: 0; min-height: 30px; padding: 3px 9px; font-size: .85rem; }
+.hb-list.compact .hb-read .lbl { display: none; }
+.hb-list.compact .hb-group { align-items: flex-start; }
+.hb-list.compact .hb-group > .hb-check { margin-top: 2px; }
+.hb-list.compact .hb-group > .hb-body { display: block; }
+.hb-list.compact .hb-subs { gap: 4px; margin-top: 6px; }
+.hb-list.compact .hb-sub { align-items: center; padding: 5px 8px; gap: 8px; border-radius: 10px; }
+.hb-list.compact .hb-sub .hb-check { width: 22px; height: 22px; font-size: .75rem; }
+.hb-list.compact .hb-sub .hb-name { font-size: .88rem; }
+
+/* أدعيتي: شريط الأدوات + العرض المصغّر */
+.dua-bar { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 2px; padding: 8px 0; background: var(--surface); border-bottom: 1px solid var(--border); }
+.dua-compact .dua-tip { display: none; }
+.dua-compact .dua-group h3 { margin: 14px 0 6px; font-size: .95rem; }
+.dua-compact .dua-list { gap: 5px; }
+.dua-compact .dua-item { padding: 7px 10px; gap: 9px; border-radius: 11px; }
+.dua-compact .dua-item p { font-size: calc(var(--dua-size) * .8); line-height: 1.65; font-weight: 400; }
+.dua-compact .dua-n { width: 24px; height: 24px; font-size: .75rem; }
+.dua-compact .dua-item .dua-n { margin-top: max(0px, calc((var(--dua-size) * .8 * 1.65 - 24px) / 2)); }
+.dua-compact .dua { margin-top: 14px; font-size: 1rem; }
