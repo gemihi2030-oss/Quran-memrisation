@@ -12,12 +12,13 @@ import {
   WARD, QURAN_ICONS, getQuranItems, quranItemId, quranItemLabel, quranItemShort, quranItemDone, setQuranItemDone,
 } from "../habits.js";
 import { getPageAyahs, renderAyahs, surahLabel, surahPages, SURAH_NAMES, TOTAL_PAGES } from "../quran.js";
-import { updateChrome } from "../router.js";
+import { updateChrome, show } from "../router.js";
 import { surahProgress } from "./cards.js";
 import { openEditor } from "./editor.js";
 import { openDuas } from "./duas.js";
 
 const root = () => $("#view-habits");
+const trackRoot = () => $("#view-tracking");
 const reader = () => $("#readerDialog");
 let viewDay = null; // يوم الخطة المعروض (null = اليوم)
 let viewWeek = null;
@@ -61,13 +62,40 @@ export function renderHabits() {
     ${headHTML(today, maxDay)}
     ${today > PLAN_DAYS ? finishedHTML() : ""}
     ${checklistHTML()}
-    ${periodHTML(maxDay)}
-    ${daysMapHTML(maxDay)}
-    ${statsHTML(maxDay)}
+    ${trackLinkHTML()}
     ${referenceHTML()}
     ${harvestHTML(today > PLAN_DAYS, maxDay)}
     ${planSettingsHTML()}`;
+}
+
+// ---------- 📊 تبويب التتبّع: أسبوع / شهر / سنة + خريطة الأيام + الإحصائيات ----------
+export function renderTracking() {
+  const el = trackRoot();
+  const t = todayStr();
+  const today = habits.plan ? planDay(habits.plan.start, t) : 0;
+  if (!habits.plan || today < 1) {
+    el.innerHTML = `<div class="card center">
+      <div class="big-emoji">📊</div>
+      <h2>تتبّع العادات</h2>
+      <p class="muted">${habits.plan
+        ? `تبدأ خطتك بعد ${1 - today} يوماً إن شاء الله، ثم تتابع هنا تقدّمك أسبوعاً بأسبوع وشهراً بشهر.`
+        : "ابدأ «خطة ملء الصحيفة» من عاداتي، ثم تابع هنا تقدّمك أسبوعاً بأسبوع وشهراً بشهر وسنة بسنة، بالجداول والمخططات."}</p>
+      <button class="btn primary" data-action="go-habits">📿 عاداتي ←</button>
+    </div>`;
+    return;
+  }
+  const maxDay = Math.min(today, PLAN_DAYS);
+  if (viewDay === null || viewDay > maxDay) viewDay = maxDay;
+  if (viewWeek === null) viewWeek = weekOfDay(viewDay);
+  el.innerHTML = `${periodHTML(maxDay)}${daysMapHTML(maxDay)}${statsHTML(maxDay)}`;
   placeGrid();
+}
+
+function trackLinkHTML() {
+  return `<button type="button" class="card hb-tracklink" data-action="go-tracking">
+    <span>📊 تتبّع عاداتي: أسبوع · شهر · سنة</span>
+    <small class="muted">جدول المربعات، المخططات والإحصائيات ←</small>
+  </button>`;
 }
 
 function renderIntro() {
@@ -377,7 +405,7 @@ function hijriSpan(a, b, withMonth = true) {
 }
 
 function periodTabsHTML() {
-  return `<div class="seg" role="group" aria-label="فترة التتبّع">${PERIODS.map(
+  return `<div class="pseg" role="group" aria-label="فترة التتبّع">${PERIODS.map(
     ([p, label]) => `<button type="button" class="${period === p ? "on" : ""}" data-action="period" data-p="${p}" aria-pressed="${period === p}">${label}</button>`
   ).join("")}</div>`;
 }
@@ -701,19 +729,22 @@ function yearHTML() {
 
 // بعد كل رسم: نُبقي الجدول حيث كان بعد تعليم مربع، وإلا نُظهر عمود اليوم (أو الشهر الحالي)
 function placeGrid() {
-  const wrap = root().querySelector(".hb-grid-wrap");
+  const wrap = trackRoot().querySelector(".hb-grid-wrap");
   if (!wrap) return;
   if (gridScroll !== null) {
     wrap.scrollLeft = gridScroll;
     gridScroll = null;
     return;
   }
-  const target = wrap.querySelector("thead .today");
-  if (!target) return;
-  const a = target.getBoundingClientRect();
-  const b = wrap.getBoundingClientRect();
-  if (!b.width) return;
-  wrap.scrollLeft += a.left + a.width / 2 - (b.left + b.width / 2);
+  const center = () => {
+    const target = wrap.querySelector("thead .today");
+    const b = wrap.getBoundingClientRect();
+    if (!target || !b.width) return;
+    const a = target.getBoundingClientRect();
+    wrap.scrollLeft += a.left + a.width / 2 - (b.left + b.width / 2);
+  };
+  center();
+  requestAnimationFrame(() => requestAnimationFrame(center)); // بعد اكتمال التخطيط والخطوط
 }
 
 // ---------- خريطة الأيام الـ75 ----------
@@ -1081,49 +1112,7 @@ delegate(root(), {
     renderHabits();
     window.scrollTo({ top: 0, behavior: "smooth" });
   },
-  period: el => {
-    period = el.dataset.p;
-    Store.set("habitsPeriod", period);
-    renderHabits();
-  },
-  "month-prev": () => {
-    viewMonth = shiftMonth(viewMonth, -1);
-    renderHabits();
-  },
-  "month-next": () => {
-    viewMonth = shiftMonth(viewMonth, 1);
-    renderHabits();
-  },
-  "year-prev": () => {
-    viewYear -= 1;
-    renderHabits();
-  },
-  "year-next": () => {
-    viewYear += 1;
-    renderHabits();
-  },
-  cell: el => {
-    const r = trackRows().find(x => x.key === el.dataset.r);
-    const date = el.dataset.date;
-    if (!r || !date || date > todayStr()) return;
-    r.toggle(habits.days[date] || (habits.days[date] = {}));
-    gridScroll = root().querySelector(".hb-grid-wrap")?.scrollLeft ?? null;
-    changed();
-  },
-  "open-month": el => {
-    viewMonth = el.dataset.m;
-    period = "month";
-    Store.set("habitsPeriod", period);
-    renderHabits();
-  },
-  "week-prev": () => {
-    viewWeek = Math.max(1, viewWeek - 1);
-    renderHabits();
-  },
-  "week-next": () => {
-    viewWeek = Math.min(PLAN_WEEKS, viewWeek + 1);
-    renderHabits();
-  },
+  "go-tracking": () => show("tracking"),
   "save-plan": async () => {
     const start = $("#hbStartEdit").value;
     if (!start) return;
@@ -1152,12 +1141,75 @@ delegate(root(), {
 // حقول نصية: حفظ تلقائي بلا إعادة رسم
 root().addEventListener("input", e => {
   const t = e.target;
+  if (t.dataset.harvestField) {
+    habits.harvest = { ...(habits.harvest || {}), [t.dataset.harvestField]: t.value };
+    saveSoon();
+  }
+});
+
+// ---------- أحداث تبويب التتبّع ----------
+delegate(trackRoot(), {
+  "go-habits": () => show("habits"),
+  // رقم يوم أو خانة في خريطة الأيام ← نفتح بنود ذلك اليوم في عاداتي
+  "go-day": el => {
+    if (!el.dataset.d) return;
+    viewDay = +el.dataset.d;
+    viewWeek = weekOfDay(viewDay);
+    show("habits");
+  },
+  period: el => {
+    period = el.dataset.p;
+    Store.set("habitsPeriod", period);
+    renderTracking();
+  },
+  "month-prev": () => {
+    viewMonth = shiftMonth(viewMonth, -1);
+    renderTracking();
+  },
+  "month-next": () => {
+    viewMonth = shiftMonth(viewMonth, 1);
+    renderTracking();
+  },
+  "year-prev": () => {
+    viewYear -= 1;
+    renderTracking();
+  },
+  "year-next": () => {
+    viewYear += 1;
+    renderTracking();
+  },
+  "open-month": el => {
+    viewMonth = el.dataset.m;
+    period = "month";
+    Store.set("habitsPeriod", period);
+    renderTracking();
+  },
+  "week-prev": () => {
+    viewWeek = Math.max(1, viewWeek - 1);
+    renderTracking();
+  },
+  "week-next": () => {
+    viewWeek = Math.min(PLAN_WEEKS, viewWeek + 1);
+    renderTracking();
+  },
+  // مربع في جدول الشهر: يعلّم البند في ذلك اليوم (ويبقى الجدول حيث كان)
+  cell: async el => {
+    const r = trackRows().find(x => x.key === el.dataset.r);
+    const date = el.dataset.date;
+    if (!r || !date || date > todayStr()) return;
+    r.toggle(habits.days[date] || (habits.days[date] = {}));
+    gridScroll = trackRoot().querySelector(".hb-grid-wrap")?.scrollLeft ?? null;
+    renderTracking();
+    updateChrome();
+    await saveNow();
+  },
+});
+
+trackRoot().addEventListener("input", e => {
+  const t = e.target;
   if (t.dataset.weekField) {
     const w = viewWeek;
     habits.weeks[w] = { ...(habits.weeks[w] || {}), [t.dataset.weekField]: t.value };
-    saveSoon();
-  } else if (t.dataset.harvestField) {
-    habits.harvest = { ...(habits.harvest || {}), [t.dataset.harvestField]: t.value };
     saveSoon();
   }
 });

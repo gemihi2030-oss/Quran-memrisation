@@ -16,7 +16,8 @@ export function show(name, { push = true } = {}) {
   const changed = currentView !== name;
   currentView = name;
   document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === "view-" + name));
-  document.querySelectorAll(".tabbar button").forEach(b => b.classList.toggle("active", b.dataset.view === name));
+  const tab = name === "review" ? "pages" : name; // جلسة المراجعة جزء من «صفحاتي»
+  document.querySelectorAll(".tabbar button").forEach(b => b.classList.toggle("active", b.dataset.view === tab));
   if (push && location.hash !== "#" + name) history.pushState(null, "", "#" + name);
   views.get(name)();
   afterRender();

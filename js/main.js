@@ -8,7 +8,7 @@ import { renderReview } from "./views/review.js";
 import { renderMushaf } from "./views/mushaf.js";
 import { renderSettings } from "./views/settings.js";
 import { renderMaps } from "./views/maps.js";
-import { renderHabits } from "./views/habits.js";
+import { renderHabits, renderTracking } from "./views/habits.js";
 
 window.__appStarted = true; // كل الملفات حُمّلت بنجاح (انظر الإصلاح الذاتي في index.html)
 
@@ -17,6 +17,7 @@ register("review", renderReview);
 register("pages", renderMushaf);
 register("maps", renderMaps);
 register("habits", renderHabits);
+register("tracking", renderTracking);
 register("settings", renderSettings);
 
 onAfterRender(() => {

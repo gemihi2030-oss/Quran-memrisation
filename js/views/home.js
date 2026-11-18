@@ -258,7 +258,7 @@ function tipsHTML(open = false) {
 delegate(root(), {
   review: () => {
     if (dueList().length) startSession();
-    else show("review");
+    else show("pages");
   },
   add: () => openEditor(),
   range: () => openRange(),

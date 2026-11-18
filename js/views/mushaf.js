@@ -1,9 +1,10 @@
 // تبويب «صفحاتي»:
+//  🔁 مراجعة اليوم     الصفحات المستحقة وزر بدء الجلسة (كانت تبويباً مستقلاً)
 //  📋 صفحاتي          بطاقات الصفحات المسجلة، مجمّعة حسب السورة مع تقدم حفظ كل سورة
 //  🗺️ الخرائط الذهنية  كل صور الخريطة الذهنية للوجه في مكان واحد، حسب السورة
 //  🔢 المصحف          خريطة الصفحات الـ 604 ملوّنة حسب قوة الحفظ
 import { $, esc, delegate } from "../util.js";
-import { pages, dueList } from "../state.js";
+import { pages, dueList, settings } from "../state.js";
 import { Store } from "../db.js";
 import { TOTAL_PAGES, juzRange, surahLabel, normalizeArabic, firstSurahOfPage, SURAH_NAMES } from "../quran.js";
 import { level, todayStr, isDue } from "../srs.js";
@@ -11,6 +12,7 @@ import { show } from "../router.js";
 import { openEditor } from "./editor.js";
 import { openRange } from "./range.js";
 import { openDetail } from "./detail.js";
+import { startSession } from "./review.js";
 import { showMaps } from "./maps.js";
 import { pageCardHTML, allImages, mapImages, linkImages, allLinks, lastTouched, surahProgress } from "./cards.js";
 
@@ -29,10 +31,32 @@ export function renderMushaf() {
   else renderList();
 }
 
+// 🔁 مراجعة اليوم
+function reviewCardHTML() {
+  if (!pages.size) return "";
+  const due = dueList();
+  if (!due.length) {
+    return `<div class="card review-card done">
+      <div class="row between"><h2>✅ لا مراجعات مستحقة</h2><button class="btn small" data-action="review-extra">💪 تدرّب</button></div>
+      <p class="muted small">بارك الله فيك. يمكنك التدرّب على أضعف صفحاتك (دون تغيير جدولها إلا إن نسيت).</p>
+    </div>`;
+  }
+  const list = due.map(p => p.page).sort((a, b) => a - b);
+  const n = Math.min(due.length, settings.maxReviews);
+  return `<div class="card review-card">
+    <div class="row between"><h2>🔁 مراجعة اليوم</h2><span class="pill">${due.length}</span></div>
+    <p class="muted small">صفحة مستحقة للمراجعة${due.length > n ? ` — ستُراجَع ${n} في هذه الجلسة` : ""}</p>
+    <div class="chips start">${list.slice(0, 30).map(p => `<span class="chip">${p}</span>`).join("")}${list.length > 30 ? `<span class="chip">…</span>` : ""}</div>
+    <button class="btn primary big" data-action="review-start">🎙️ ابدأ المراجعة</button>
+    <p class="muted small">نصيحة: سمّع بصوت مسموع ومن ذاكرتك قبل كشف أي شيء — الجهد في التذكر هو ما يثبّت الحفظ.</p>
+  </div>`;
+}
+
 function headerHTML() {
   const nMaps = [...pages.values()].reduce((s, r) => s + mapImages(r).length, 0);
   const tab = (m, label) => `<button class="${mode === m ? "on" : ""}" data-action="mode" data-m="${m}" role="tab">${label}</button>`;
   return `
+    ${reviewCardHTML()}
     <div class="seg three" role="tablist">
       ${tab("list", `📋 صفحاتي (${pages.size})`)}
       <button data-action="open-maps-tab" role="tab">🗺️ الخرائط (${nMaps})</button>
@@ -225,6 +249,8 @@ export function showPagesList({ surah = 0, view = "list" } = {}) {
 }
 
 delegate(root(), {
+  "review-start": () => startSession(),
+  "review-extra": () => startSession({ extra: true }),
   mode: el => {
     setMode(el.dataset.m);
     renderMushaf();

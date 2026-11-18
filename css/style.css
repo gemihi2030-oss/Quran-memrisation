@@ -831,10 +831,23 @@ dialog.lightbox:has(.lb-note) img { max-height: 58dvh; }
 .note-list.compact .note-snippet { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin: 0 0 2px; font-size: .92rem; line-height: 1.7; color: var(--muted); white-space: pre-wrap; }
 
 /* ---------- تتبّع العادات: أسبوع / شهر / سنة ---------- */
-.seg { display: flex; gap: 2px; padding: 3px; margin-bottom: 12px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-2); }
-.seg button { flex: 1; min-height: 36px; border: 0; border-radius: 11px; background: none; font: inherit; font-weight: 700; color: var(--muted); cursor: pointer; }
-.seg button.on { background: var(--primary-soft); color: var(--primary-2); }
-.seg button:hover:not(.on) { color: var(--text); }
+.pseg { display: flex; gap: 2px; padding: 3px; margin-bottom: 12px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-2); }
+.pseg button { flex: 1; min-height: 36px; border: 0; border-radius: 11px; background: none; font: inherit; font-weight: 700; color: var(--muted); cursor: pointer; }
+.pseg button.on { background: var(--primary-soft); color: var(--primary-2); }
+.pseg button:hover:not(.on) { color: var(--text); }
+
+/* رابط تبويب التتبّع في عاداتي */
+.hb-tracklink { display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: start; font: inherit; color: var(--text); cursor: pointer; border-color: var(--gold); }
+.hb-tracklink span { font-weight: 800; font-size: 1.02rem; }
+.hb-tracklink:hover { border-color: var(--primary-2); }
+
+/* 🔁 مراجعة اليوم في «صفحاتي» */
+.review-card { border-color: var(--primary-2); }
+.review-card h2 { margin: 0; }
+.review-card .chips { margin: 8px 0; }
+.review-card .btn.big { margin-top: 6px; }
+.review-card.done { border-color: var(--border); }
+.review-card.done p { margin: 6px 0 0; }
 .hb-ptitle { margin: 18px 0 4px; color: var(--gold); font-size: .95rem; }
 .hb-pempty { margin: 10px 0 4px; }
 
