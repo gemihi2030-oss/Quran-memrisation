@@ -233,7 +233,8 @@ test("habits plan: schedule matches the 75-day plan", async () => {
 
 test("habits plan: scoring, minimum and streaks", async () => {
   const H = await import("../js/habits.js");
-  const full = { quran: 1, morning: 1, evening: 1, prayers: [1, 1, 1, 1, 1], sleep: 1, qiyam: 1, sunan: [1, 1, 1, 1], duha: 1, dua: 1, sadaqa: 1 };
+  const q = { "read-2": 1, "read-36": 1, "read-67": 1, "hifz-2": 1 };
+  const full = { quran: 1, q, morning: 1, evening: 1, prayers: [1, 1, 1, 1, 1], sleep: 1, qiyam: 1, sunan: [1, 1, 1, 1], duha: 1, dua: 1, sadaqa: 1 };
   assert.equal(H.dayScore(full).pct, 100);
   assert.equal(H.dayScore({}).pct, 0);
   assert.equal(H.dayScore({ prayers: [1, 1, 0, 0, 0] }).done, 0.4, "parts count by fraction");
@@ -251,6 +252,36 @@ test("habits plan: scoring, minimum and streaks", async () => {
   assert.equal(H.bestStreak(days, start, 6), 3);
   assert.equal(H.khatmaPages({ "2026-11-01": { quran: 1 }, "2026-11-02": { quran: 1 } }, start), 16);
   const rates = H.habitRates(days, start, 6);
-  assert.equal(rates.find(r => r.id === "quran").rate, 83);
+  assert.equal(rates.find(r => r.id === "quran").rate, 17, "the Quran group counts its 5 items");
+  assert.equal(rates.find(r => r.id === "q:ward").rate, 83);
+  assert.equal(rates.find(r => r.id === "q:read-36").rate, 0);
   assert.equal(rates.find(r => r.id === "duha").rate, 0);
+});
+
+test("habits plan: Quran items (ward, surah reading, memorisation)", async () => {
+  const H = await import("../js/habits.js");
+  const items = H.normalizeQuranItems();
+  assert.deepEqual(items.map(i => i.id), ["ward", "read-2", "read-36", "read-67", "hifz-2"]);
+  assert.deepEqual(items.map(H.quranItemLabel), ["ورد الختمة", "قراءة سورة البقرة", "قراءة سورة يس", "قراءة سورة الملك", "حفظ سورة البقرة"]);
+  // تنظيف: الورد أولاً دائماً، بلا تكرار ولا سور خاطئة
+  const clean = H.normalizeQuranItems([{ kind: "read", surah: 18 }, { kind: "read", surah: 18 }, { kind: "hifz", surah: 999 }, { kind: "ward" }, null]);
+  assert.deepEqual(clean.map(i => i.id), ["ward", "read-18"]);
+  const quran = H.HABITS.find(h => h.id === "quran");
+  assert.equal(H.habitValue(quran, { quran: 1 }), 0.2);
+  assert.equal(H.habitValue(quran, { quran: 1, q: { "read-2": 1, "hifz-2": 0 } }), 0.4);
+  // الحد الأدنى يكفيه ورد الختمة من بنود القرآن
+  const minimum = { quran: 1, morning: 1, evening: 1, qiyam: 1, sunan: [1, 1, 1, 1], sadaqa: 1 };
+  assert.equal(H.minimumMet(minimum), true);
+  assert.equal(H.minimumMet({ ...minimum, quran: 0, q: { "read-2": 1, "read-36": 1, "read-67": 1, "hifz-2": 1 } }), false);
+  // تسجيل صفحة من البقرة ← «حفظ سورة البقرة» لليوم
+  const h = { plan: { start: "2026-11-18" }, days: {} };
+  assert.equal(H.autoMarkHifz(h, 14, "2026-11-18").id, "hifz-2");
+  assert.equal(h.days["2026-11-18"].q["hifz-2"], 1);
+  assert.equal(H.autoMarkHifz(h, 15, "2026-11-18"), null, "already marked");
+  assert.equal(H.autoMarkHifz(h, 600, "2026-11-19"), null, "not a surah being memorised");
+  assert.equal(H.autoMarkHifz(h, 14, "2026-11-17"), null, "before the plan");
+  // بنود مخصّصة
+  H.setQuranItems(H.normalizeQuranItems([{ kind: "read", surah: 18 }]));
+  assert.equal(H.habitValue(quran, { quran: 1 }), 0.5);
+  H.setQuranItems(H.normalizeQuranItems());
 });

@@ -1,6 +1,7 @@
 // نافذة تسجيل / تعديل صفحة: الآيات + مفاتيح الحفظ (كلمات الربط، الصور الذهنية، الصور)
 import { $, esc, lines, toast, delegate, compressImage } from "../util.js";
-import { pages, savePage, removePage, suggestNextPage } from "../state.js";
+import { pages, savePage, removePage, suggestNextPage, habits, saveHabits } from "../state.js";
+import { autoMarkHifz, quranItemLabel } from "../habits.js";
 import {
   TOTAL_PAGES, getPageAyahs, surahLabel, juzOfPage, hizbOfPage, rangeLabel, ayahCountOnPage,
   firstWords, arDigits, parseManualText, ayahsToText, SURAH_NAMES, pageRange,
@@ -311,6 +312,7 @@ async function save() {
     notes: (draft.notes || "").trim(),
     images: draft.images.map(cleanPhoto),
     maps: draft.maps.map(cleanPhoto),
+    tadabbur: existing?.tadabbur || [], // صفحة جديدة: قائمة فارغة (بطاقة الصفحة تقرؤها مباشرة بعد الحفظ)
     createdAt: existing?.createdAt || new Date().toISOString(),
     srs: existing?.srs || newCard(todayStr(), firstReview),
   };
@@ -329,13 +331,16 @@ async function save() {
     toast("تعذر الحفظ — ربما مساحة التخزين ممتلئة");
     return;
   }
+  // صفحة جديدة من سورة في «حفظ سورة …» بعاداتي ← نعلّم البند لليوم
+  const hifz = isNew && !existing ? autoMarkHifz(habits, p, todayStr()) : null;
+  if (hifz) saveHabits().catch(() => {});
   dlg().close();
   refresh();
   // نعرض الصفحة المحفوظة مباشرة حتى ترى صورك ومفاتيحك
   if (current() !== "review") openDetail(p);
   toast(
     isNew
-      ? `تم تسجيل الصفحة ${p} ✓ ${firstReview ? "أول مراجعة غداً" : "ستظهر في مراجعة اليوم"} إن شاء الله`
+      ? `تم تسجيل الصفحة ${p} ✓ ${firstReview ? "أول مراجعة غداً" : "ستظهر في مراجعة اليوم"} إن شاء الله${hifz ? ` · 📿 عُلّم «${quranItemLabel(hifz)}» في عاداتي` : ""}`
       : moving
         ? `تم نقل الصفحة ${origPage} إلى الصفحة ${p} ✓`
         : "تم الحفظ ✓"

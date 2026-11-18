@@ -105,7 +105,7 @@ function habitsCardHTML() {
     <div class="row between"><h2>📿 خطة ملء الصحيفة</h2><span class="pill">اليوم ${s.day} / 75</span></div>
     <div class="progress"><div class="bar" style="width:${s.pct}%"></div></div>
     <p class="small">${s.pct}٪ من بنود اليوم${s.minimum ? " · ✓ الحد الأدنى" : ""} · 🔥 ${s.streak}</p>
-    <p class="small">📖 ورد اليوم: ص ${s.range.from}–${s.range.to}${s.quranDone ? " ✓" : ""}</p>
+    <p class="small">📖 القرآن: ${s.quranItems}/${s.quranTotal} · ورد اليوم ص ${s.range.from}–${s.range.to}${s.quranDone ? " ✓" : ""}</p>
     <button class="btn primary" data-action="open-habits">✅ سجّل عاداتي اليوم ←</button>
   </div>`;
 }

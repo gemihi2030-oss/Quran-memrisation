@@ -1,7 +1,7 @@
 // خطة ملء الصحيفة: 75 يوماً · 11 أسبوعاً · 8 صفحات يومياً · ختمة كاملة
 // منطق الخطة فقط (بلا واجهة) — قابل للاختبار
 import { addDays, daysBetween } from "./srs.js";
-import { juzOfPage, TOTAL_PAGES } from "./quran.js";
+import { juzOfPage, TOTAL_PAGES, SURAH_NAMES, surahsOnPage } from "./quran.js";
 
 export const PLAN_DAYS = 75;
 export const PLAN_WEEKS = 11;
@@ -9,8 +9,9 @@ export const PAGES_PER_DAY = 8;
 
 // البنود اليومية (من الخطة). core = من «الحد الأدنى لضيق الوقت»، optional = لا يدخل في النسبة
 // parts = مربعات صغيرة: ف فجر · ظ ظهر · ع عصر · م مغرب · ش عشاء
+// group = «القرآن»: بنود فرعية (ورد الختمة، قراءة سور، حفظ سورة) — انظر بنود القرآن في الأسفل
 export const HABITS = [
-  { id: "quran", icon: "📖", name: "ورد القرآن", core: true },
+  { id: "quran", icon: "📖", name: "القرآن", core: true, group: true },
   { id: "morning", icon: "🌅", name: "أذكار الصباح", hint: "بعد الفجر", core: true },
   { id: "evening", icon: "🌇", name: "أذكار المساء", hint: "بعد العصر", core: true },
   { id: "prayers", icon: "📿", name: "أذكار بعد الصلوات", hint: "بعد كل صلاة", parts: ["ف", "ظ", "ع", "م", "ش"] },
@@ -24,6 +25,75 @@ export const HABITS = [
 ];
 
 export const PART_NAMES = { ف: "الفجر", ظ: "الظهر", ع: "العصر", م: "المغرب", ش: "العشاء" };
+
+// ---------- بنود القرآن ----------
+// ward = ورد الختمة (8 صفحات يومياً، يُحفظ في entry.quran كما في النسخ السابقة)
+// read = قراءة سورة · hifz = حفظ سورة — يُحفظ إنجازها في entry.q = { "read-36": 1, … }
+export const WARD = { id: "ward", kind: "ward" };
+export const DEFAULT_QURAN_ITEMS = [
+  WARD,
+  { id: "read-2", kind: "read", surah: 2 },
+  { id: "read-36", kind: "read", surah: 36 },
+  { id: "read-67", kind: "read", surah: 67 },
+  { id: "hifz-2", kind: "hifz", surah: 2 },
+];
+export const QURAN_ICONS = { ward: "📖", read: "📗", hifz: "🧠" };
+
+export const quranItemId = (kind, surah) => (kind === "ward" ? "ward" : `${kind}-${surah}`);
+
+// قائمة صالحة دائماً: الورد أولاً، ثم بنود بلا تكرار (القيمة الافتراضية لمن لم يخصّص بعد)
+export function normalizeQuranItems(list) {
+  if (!Array.isArray(list)) return DEFAULT_QURAN_ITEMS.map(x => ({ ...x }));
+  const out = [{ ...WARD }];
+  for (const x of list) {
+    const s = +x?.surah;
+    if (!["read", "hifz"].includes(x?.kind) || !(s >= 1 && s <= 114)) continue;
+    const id = quranItemId(x.kind, s);
+    if (!out.some(y => y.id === id)) out.push({ id, kind: x.kind, surah: s });
+  }
+  return out;
+}
+
+let quranItems = normalizeQuranItems();
+export const getQuranItems = () => quranItems;
+export function setQuranItems(list) {
+  quranItems = Array.isArray(list) && list.length ? list : normalizeQuranItems();
+}
+
+export function quranItemLabel(item) {
+  if (item.kind === "ward") return "ورد الختمة";
+  return `${item.kind === "hifz" ? "حفظ" : "قراءة"} سورة ${SURAH_NAMES[item.surah - 1]}`;
+}
+
+// اسم قصير لجدول الأسبوع
+export function quranItemShort(item) {
+  if (item.kind === "ward") return "الورد";
+  return `${item.kind === "hifz" ? "🧠" : ""}${SURAH_NAMES[item.surah - 1]}`;
+}
+
+export function quranItemDone(item, entry) {
+  if (!entry) return false;
+  return item.kind === "ward" ? !!entry.quran : !!entry.q?.[item.id];
+}
+
+export function setQuranItemDone(item, entry, on) {
+  if (item.kind === "ward") entry.quran = on ? 1 : 0;
+  else entry.q = { ...(entry.q || {}), [item.id]: on ? 1 : 0 };
+}
+
+// عند تسجيل صفحة جديدة في التطبيق: نعلّم «حفظ السورة» في يوم التسجيل (إن كان من أيام الخطة)
+export function autoMarkHifz(h, page, date) {
+  if (!h?.plan) return null;
+  const d = planDay(h.plan.start, date);
+  if (d < 1 || d > PLAN_DAYS) return null;
+  const onPage = surahsOnPage(page);
+  const item = quranItems.find(i => i.kind === "hifz" && onPage.includes(i.surah));
+  if (!item) return null;
+  const entry = h.days[date] || (h.days[date] = {});
+  if (quranItemDone(item, entry)) return null;
+  setQuranItemDone(item, entry, true);
+  return item;
+}
 
 // ---------- الجدول ----------
 // اليوم 1..74: 8 صفحات · اليوم 75: من 593 إلى 604 (12 صفحة) وبه تتم الختمة
@@ -56,6 +126,7 @@ export const daysOfWeek = week => {
 // قيمة بند في يوم: 0..1 (المربعات الصغيرة تُحتسب بنسبتها)
 export function habitValue(h, entry) {
   if (!entry) return 0;
+  if (h.group) return quranItems.filter(i => quranItemDone(i, entry)).length / quranItems.length;
   const v = entry[h.id];
   if (h.parts) return Array.isArray(v) ? v.filter(Boolean).length / h.parts.length : 0;
   return v ? 1 : 0;
@@ -83,9 +154,10 @@ export function dayScore(entry, custom = []) {
   return { done, total, pct, minimum: minimumMet(entry) };
 }
 
-// «الحد الأدنى»: الورد، أذكار الصباح والمساء، السنن الرواتب كاملة، الوتر، صدقة
+// «الحد الأدنى»: ورد الختمة، أذكار الصباح والمساء، السنن الرواتب كاملة، الوتر، صدقة
+// (من بنود القرآن يكفي ورد الختمة؛ قراءة السور والحفظ زيادة خير)
 export function minimumMet(entry) {
-  return HABITS.filter(h => h.core).every(h => habitValue(h, entry) === 1);
+  return HABITS.filter(h => h.core).every(h => (h.group ? quranItemDone(WARD, entry) : habitValue(h, entry) === 1));
 }
 
 // ---------- الاستمرارية ----------
@@ -127,6 +199,13 @@ export function habitRates(days, start, upToDay, custom = []) {
     let s = 0;
     for (let d = 1; d <= n; d++) s += habitValue(h, days[dateOfDay(start, d)]);
     rates.push({ id: h.id, icon: h.icon, name: h.name, optional: !!h.optional, rate: Math.round((s / n) * 100) });
+    if (h.group) {
+      for (const it of quranItems) {
+        let k = 0;
+        for (let d = 1; d <= n; d++) if (quranItemDone(it, days[dateOfDay(start, d)])) k++;
+        rates.push({ id: `q:${it.id}`, icon: QURAN_ICONS[it.kind], name: quranItemLabel(it), sub: true, rate: Math.round((k / n) * 100) });
+      }
+    }
   }
   for (const c of custom) {
     let s = 0;

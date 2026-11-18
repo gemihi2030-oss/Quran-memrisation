@@ -25,6 +25,7 @@ function reopen() {
 export function openDetail(p) {
   const rec = pages.get(p);
   if (!rec) return openEditor(p);
+  if (!Array.isArray(rec.tadabbur)) rec.tadabbur = []; // صفحات سُجّلت قبل إصلاح المحرر ولم يُعَد تحميلها
   pageNo = p;
   const s = rec.srs;
   const t = todayStr();

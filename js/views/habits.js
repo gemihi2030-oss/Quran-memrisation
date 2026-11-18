@@ -2,15 +2,18 @@
 // اليوم: بنود يومية بمربعات (ومربعات صغيرة للصلوات) · ورد القرآن مع قارئ داخل التطبيق
 // الأسبوع: جدول مثل صفحات الخطة + موضوع الأسبوع وأدعيته وملاحظاته · خريطة الأيام الـ75 · إحصائيات · حصاد الخطة
 import { $, esc, delegate, toast } from "../util.js";
-import { habits, saveHabits, newId } from "../state.js";
+import { habits, saveHabits, newId, pages, setQuranList } from "../state.js";
 import { Store } from "../db.js";
 import { todayStr, parseDate } from "../srs.js";
 import {
   HABITS, PART_NAMES, PLAN_DAYS, PLAN_WEEKS, quranRange, juzLabel, planDay, dateOfDay, weekOfDay, daysOfWeek,
   habitValue, customValue, dayScore, currentStreak, bestStreak, khatmaPages, habitRates,
+  WARD, QURAN_ICONS, getQuranItems, quranItemId, quranItemLabel, quranItemShort, quranItemDone, setQuranItemDone,
 } from "../habits.js";
-import { getPageAyahs, renderAyahs, surahLabel, TOTAL_PAGES } from "../quran.js";
+import { getPageAyahs, renderAyahs, surahLabel, surahPages, SURAH_NAMES, TOTAL_PAGES } from "../quran.js";
 import { updateChrome } from "../router.js";
+import { surahProgress } from "./cards.js";
+import { openEditor } from "./editor.js";
 
 const root = () => $("#view-habits");
 const reader = () => $("#readerDialog");
@@ -18,6 +21,7 @@ let viewDay = null; // يوم الخطة المعروض (null = اليوم)
 let viewWeek = null;
 let saveTimer = 0;
 let minimal = Store.get("habitsMinimal", false);
+let qEditOpen = false; // إبقاء «تخصيص بنود القرآن» مفتوحاً بعد الإضافة/الحذف
 
 const fmtDate = (date, opts = { weekday: "long", day: "numeric", month: "long" }) => parseDate(date).toLocaleDateString("ar-DZ", opts);
 const weekdayShort = date => parseDate(date).toLocaleDateString("ar-DZ", { weekday: "short" });
@@ -145,10 +149,10 @@ function checklistHTML() {
   const range = quranRange(viewDay);
   const rows = HABITS.filter(h => !minimal || h.core)
     .map(h => {
+      if (h.group) return quranGroupHTML(h, entry, date, range);
       const v = habitValue(h, entry);
       const state = v === 1 ? "done" : v > 0 ? "part" : "";
       let hint = h.hint || "";
-      if (h.id === "quran") hint = `ص ${range.from}–${range.to} · ${juzLabel(range)}${viewDay === PLAN_DAYS ? " · وبه تتم الختمة" : ""}`;
       if (h.id === "fast" && isFastDay(date)) hint = `اليوم ${parseDate(date).getDay() === 1 ? "الاثنين" : "الخميس"} 🌙 · اختياري`;
       const parts = h.parts
         ? `<div class="hb-parts">${h.parts
@@ -161,7 +165,6 @@ function checklistHTML() {
           <div class="hb-name">${h.icon} ${h.name}${h.core ? ` <span class="core" title="من الحد الأدنى">⭐</span>` : ""}</div>
           ${hint ? `<div class="hb-hint">${hint}</div>` : ""}
           ${parts}
-          ${h.id === "quran" ? `<button type="button" class="btn small hb-read" data-action="read">📖 اقرأ الورد</button>` : ""}
         </div>
       </div>`;
     })
@@ -197,6 +200,84 @@ function checklistHTML() {
     </div>`;
 }
 
+// ---------- 📖 القرآن: ورد الختمة + قراءة سور + حفظ ----------
+// تاريخ تسجيل صفحة بالتوقيت المحلي (createdAt محفوظ بصيغة ISO)
+const localDay = iso => (iso ? todayStr(new Date(iso)) : "");
+
+// الصفحة التالية للحفظ في السورة: بعد آخر صفحة سجّلتها منها، وإلا أول صفحة ناقصة
+function nextHifzPage(s) {
+  const [a, b] = surahPages(s);
+  const own = [...pages.values()].filter(r => r.page >= a && r.page <= b && !r.bulk);
+  const latest = own.sort((x, y) => String(y.createdAt || "").localeCompare(String(x.createdAt || "")))[0];
+  if (latest) for (let p = latest.page + 1; p <= b; p++) if (!pages.has(p)) return p;
+  for (let p = a; p <= b; p++) if (!pages.has(p)) return p;
+  return null;
+}
+
+function quranSubHTML(it, entry, date, range) {
+  const done = quranItemDone(it, entry);
+  let hint = "";
+  let extra = "";
+  if (it.kind === "ward") {
+    hint = `ص ${range.from}–${range.to} · ${juzLabel(range)}${viewDay === PLAN_DAYS ? " · وبه تتم الختمة" : ""}`;
+    extra = `<button type="button" class="btn small hb-read" data-action="read" data-id="ward">📖 اقرأ الورد</button>`;
+  } else if (it.kind === "read") {
+    const [a, b] = surahPages(it.surah);
+    const n = b - a + 1;
+    hint = a === b ? `ص ${a}` : `ص ${a}–${b} · ${n} ${n <= 10 ? "صفحات" : "صفحة"}`;
+    extra = `<button type="button" class="btn small hb-read" data-action="read" data-id="${it.id}">📗 اقرأ السورة</button>`;
+  } else {
+    const pr = surahProgress(it.surah);
+    const [a, b] = surahPages(it.surah);
+    const added = [...pages.values()].filter(r => r.page >= a && r.page <= b && !r.bulk && localDay(r.createdAt) === date).map(r => r.page);
+    hint = `حفظت ${pr.n} من ${pr.total} صفحة (${pr.pct}٪)${added.length ? ` · سجّلت في هذا اليوم: ص ${added.sort((x, y) => x - y).join("، ")}` : ""}`;
+    const next = nextHifzPage(it.surah);
+    extra = next
+      ? `<button type="button" class="btn small hb-read" data-action="add-page" data-page="${next}">＋ حفظت الصفحة ${next}</button>`
+      : `<p class="hb-hint">🎉 سجّلت كل صفحات السورة — ما شاء الله!</p>`;
+  }
+  return `<div class="hb-sub${done ? " done" : ""}" data-action="q-toggle" data-id="${it.id}" role="checkbox" aria-checked="${done}" tabindex="0">
+    <span class="hb-check" aria-hidden="true">${done ? "✓" : ""}</span>
+    <div class="hb-body">
+      <div class="hb-name">${QURAN_ICONS[it.kind]} ${quranItemLabel(it)}${it.kind === "ward" ? ` <span class="core" title="من الحد الأدنى">⭐</span>` : ""}</div>
+      <div class="hb-hint">${hint}</div>
+      ${extra}
+    </div>
+  </div>`;
+}
+
+function quranGroupHTML(h, entry, date, range) {
+  const all = getQuranItems();
+  const items = minimal ? all.filter(i => i.kind === "ward") : all;
+  const n = all.filter(i => quranItemDone(i, entry)).length;
+  const state = n === all.length ? "done" : n ? "part" : "";
+  const kindOpts = `<option value="read">📗 قراءة</option><option value="hifz">🧠 حفظ</option>`;
+  const surahOpts = SURAH_NAMES.map((s, i) => `<option value="${i + 1}">${i + 1}. ${s}</option>`).join("");
+  const edit = minimal
+    ? ""
+    : `<details class="hb-add hb-qedit" ${qEditOpen ? "open" : ""}>
+        <summary>✏️ تخصيص بنود القرآن</summary>
+        <div class="hb-qlist">${all
+          .filter(i => i.kind !== "ward")
+          .map(i => `<div class="hb-qitem"><span>${QURAN_ICONS[i.kind]} ${quranItemLabel(i)}</span><button type="button" class="icon-btn small" data-action="q-del" data-id="${i.id}" aria-label="حذف">✕</button></div>`)
+          .join("")}</div>
+        <div class="row gap-s wrap">
+          <select id="hbQKind" aria-label="النوع">${kindOpts}</select>
+          <select id="hbQSurah" class="grow" aria-label="السورة">${surahOpts}</select>
+          <button type="button" class="btn small primary" data-action="q-add">＋ إضافة</button>
+        </div>
+        <p class="muted small">ورد الختمة ثابت لأنه أساس الخطة. ما سجّلته سابقاً لبند محذوف يبقى محفوظاً.</p>
+      </details>`;
+  return `<div class="hb-row hb-group ${state}">
+    <span class="hb-check" aria-hidden="true">${state === "done" ? "✓" : ""}</span>
+    <div class="hb-body">
+      <div class="hb-name">${h.icon} ${h.name} <span class="core" title="ورد الختمة من الحد الأدنى">⭐</span> <span class="hb-count">${n}/${all.length}</span></div>
+      <div class="hb-subs">${items.map(it => quranSubHTML(it, entry, date, range)).join("")}</div>
+      ${edit}
+    </div>
+  </div>`;
+}
+
 // ---------- الأسبوع ----------
 function cellHTML(v, future) {
   if (future) return `<td class="future"></td>`;
@@ -216,7 +297,13 @@ function weekHTML(maxDay) {
       return `<th class="${d === viewDay ? "cur" : ""}${d > maxDay ? " future" : ""}" data-action="${d <= maxDay ? "go-day" : ""}" data-d="${d}">${d}<small>${weekdayShort(date)}</small></th>`;
     })
     .join("");
-  const rows = HABITS.map(h => `<tr><th title="${h.name}">${h.icon}</th>${days.map(d => cellHTML(habitValue(h, habits.days[dateOfDay(start, d)]), d > maxDay)).join("")}</tr>`).join("");
+  const rows = HABITS.map(h =>
+    h.group
+      ? getQuranItems()
+          .map(it => `<tr class="sub"><th title="${quranItemLabel(it)}">${quranItemShort(it)}</th>${days.map(d => cellHTML(quranItemDone(it, habits.days[dateOfDay(start, d)]) ? 1 : 0, d > maxDay)).join("")}</tr>`)
+          .join("")
+      : `<tr><th title="${h.name}">${h.icon}</th>${days.map(d => cellHTML(habitValue(h, habits.days[dateOfDay(start, d)]), d > maxDay)).join("")}</tr>`
+  ).join("");
   const customRows = habits.custom
     .map(c => `<tr><th title="${esc(c.name)}">${esc(c.icon || "⭐")}</th>${days.map(d => cellHTML(customValue(c, habits.days[dateOfDay(start, d)]), d > maxDay)).join("")}</tr>`)
     .join("");
@@ -285,7 +372,10 @@ function statsHTML(maxDay) {
     sum += sc.pct;
     if (sc.minimum) minDays++;
   }
-  const rates = habitRates(habits.days, start, maxDay, habits.custom).filter(r => !r.optional);
+  const all = habitRates(habits.days, start, maxDay, habits.custom).filter(r => !r.optional);
+  const subs = all.filter(r => r.sub);
+  const rateRow = (r, sub = false) =>
+    `<div class="hb-rate${sub ? " sub" : ""}"><span>${esc(r.icon)} ${esc(r.name)}</span><div class="bar-bg"><i style="width:${r.rate}%"></i></div><b>${r.rate}٪</b></div>`;
   return `
     <div class="card">
       <h3>📊 إحصائياتي</h3>
@@ -295,9 +385,10 @@ function statsHTML(maxDay) {
         <div class="stat"><b>${bestStreak(habits.days, start, maxDay)}</b><span>أطول استمرار</span></div>
         <div class="stat"><b>${Math.round((khatmaPages(habits.days, start) / TOTAL_PAGES) * 100)}٪</b><span>من الختمة</span></div>
       </div>
-      <div class="hb-rates">${rates
+      <div class="hb-rates">${all
+        .filter(r => !r.sub)
         .sort((a, b) => b.rate - a.rate)
-        .map(r => `<div class="hb-rate"><span>${esc(r.icon)} ${esc(r.name)}</span><div class="bar-bg"><i style="width:${r.rate}%"></i></div><b>${r.rate}٪</b></div>`)
+        .map(r => rateRow(r) + (r.id === "quran" ? subs.map(s => rateRow(s, true)).join("") : ""))
         .join("")}</div>
     </div>`;
 }
@@ -307,11 +398,12 @@ function howItWorksHTML(open = false) {
   return `<details class="card tips" ${open ? "open" : ""}>
     <summary><h2>كيف تسير الخطة؟</h2></summary>
     <ul class="hb-how">
-      <li><b>📖 ورد القرآن:</b> ختمة في 75 يوماً (مصحف المدينة، 604 صفحة): 8 صفحات يومياً من اليوم 1 إلى 74، ثم 12 صفحة في اليوم الأخير (593–604).</li>
+      <li><b>📖 ورد الختمة:</b> ختمة في 75 يوماً (مصحف المدينة، 604 صفحة): 8 صفحات يومياً من اليوم 1 إلى 74، ثم 12 صفحة في اليوم الأخير (593–604).</li>
+      <li><b>📖 بند القرآن</b> يجمع: ورد الختمة، قراءة سورة البقرة ويس والملك، وحفظ سورة البقرة — لكلٍّ مربعه وقارئه. خصّصها من «✏️ تخصيص بنود القرآن»، وتسجيل صفحة جديدة في التطبيق يعلّم «الحفظ» تلقائياً.</li>
       <li><b>طريقة التقسيم:</b> صفحة بعد كل فرض (5 صفحات) + 3 صفحات في وقت فراغ، أو 4 صفحات بعد الفجر + 4 بعد العصر أو قبل النوم.</li>
       <li><b>✅ التتبع:</b> علّم كل بند عند إتمامه. في أذكار الصلوات والسنن مربعات صغيرة لكل صلاة (السنن: ف ظ م ش، لأن العصر ليس له راتبة).</li>
       <li><b>🔁 إن فاتك يوم أو بند</b> فلا تترك الخطة: ارجع لذلك اليوم وعوّضه، ثم أكمل من اليوم التالي — فأحب الأعمال إلى الله أدومها وإن قلّ.</li>
-      <li><b>🌱 الحد الأدنى لضيق الوقت (⭐):</b> ورد القرآن، أذكار الصباح والمساء، السنن الرواتب، ركعة وتر، وصدقة صغيرة — ثم زد من الباقي بقدر ما تستطيع.</li>
+      <li><b>🌱 الحد الأدنى لضيق الوقت (⭐):</b> ورد الختمة، أذكار الصباح والمساء، السنن الرواتب، ركعة وتر، وصدقة صغيرة — ثم زد من الباقي بقدر ما تستطيع.</li>
     </ul>
   </details>`;
 }
@@ -359,7 +451,7 @@ function referenceHTML() {
 // ---------- حصاد الخطة ----------
 function harvestHTML(finished, maxDay) {
   const { start } = habits.plan;
-  const rates = habitRates(habits.days, start, maxDay, habits.custom).filter(r => !r.optional);
+  const rates = habitRates(habits.days, start, maxDay, habits.custom).filter(r => !r.optional && !r.sub);
   const best = [...rates].sort((a, b) => b.rate - a.rate)[0];
   const hardest = [...rates].sort((a, b) => a.rate - b.rate)[0];
   const pages = khatmaPages(habits.days, start);
@@ -404,46 +496,95 @@ function planSettingsHTML(open = false) {
   </details>`;
 }
 
-// ---------- قارئ ورد اليوم ----------
-async function openReader(day) {
-  const range = quranRange(day);
+// ---------- القارئ: ورد اليوم أو سورة كاملة ----------
+// أحاديث صحيحة في فضل بعض السور (تظهر أسفل القارئ)
+const SURAH_VIRTUE = {
+  2: "«اقرؤوا سورة البقرة، فإن أخذها بركة، وتركها حسرة، ولا تستطيعها البطلة» — رواه مسلم",
+  67: "«إن سورة من القرآن ثلاثون آية شفعت لرجل حتى غُفر له، وهي تبارك الذي بيده الملك» — رواه أبو داود والترمذي",
+};
+let readerToken = 0;
+
+async function openReader(day, id = "ward") {
+  const item = getQuranItems().find(i => i.id === id) || WARD;
   const date = dateOfDay(habits.plan.start, day);
-  const done = !!habits.days[date]?.quran;
+  const done = quranItemDone(item, habits.days[date]);
+  let from, to, title, foot;
+  let surah = null;
+  if (item.kind === "ward") {
+    const range = quranRange(day);
+    ({ from, to } = range);
+    title = `📖 ورد اليوم ${day} <small class="muted">ص ${from}–${to} · ${juzLabel(range)}</small>`;
+    foot = "صفحة بعد كل فرض + 3 في وقت فراغ";
+  } else {
+    surah = item.surah;
+    [from, to] = surahPages(surah);
+    title = `📗 سورة ${SURAH_NAMES[surah - 1]} <small class="muted">ص ${from}–${to}</small>`;
+    foot = SURAH_VIRTUE[surah] || `${to - from + 1} ${to - from + 1 <= 10 ? "صفحات" : "صفحة"}`;
+  }
+  const doneLabel = item.kind === "ward" ? "✓ قرأت الورد" : "✓ قرأت السورة";
   reader().innerHTML = `
     <header class="sheet-head">
-      <h2>📖 ورد اليوم ${day} <small class="muted">ص ${range.from}–${range.to} · ${juzLabel(range)}</small></h2>
+      <h2>${title}</h2>
       <button type="button" class="icon-btn" data-action="close" aria-label="إغلاق">✕</button>
     </header>
-    <div class="sheet-body" id="rdBody"><p class="muted center">⏳ جارٍ تحميل الصفحات…</p></div>
+    <div class="sheet-body" id="rdBody"></div>
     <footer class="sheet-foot">
-      <span class="grow muted small">صفحة بعد كل فرض + 3 في وقت فراغ</span>
-      <button type="button" class="btn primary" data-action="read-done">${done ? "✓ تم" : "✓ قرأت الورد"}</button>
+      <span class="grow muted small">${foot}</span>
+      <button type="button" class="btn primary" data-action="read-done">${done ? "✓ تم" : doneLabel}</button>
     </footer>`;
   reader().dataset.day = day;
+  reader().dataset.item = item.id;
   reader().showModal();
-  const pagesNums = [];
-  for (let p = range.from; p <= range.to; p++) pagesNums.push(p);
-  const results = await Promise.all(pagesNums.map(p => getPageAyahs(p).catch(() => null)));
-  if (+reader().dataset.day !== day || !reader().open) return;
-  $("#rdBody").innerHTML = pagesNums
-    .map((p, i) => `<section class="rd-page">
-      <div class="rd-head"><b>صفحة ${p}</b><span>${surahLabel(p)}</span></div>
-      ${results[i] ? `<div class="quran">${renderAyahs(results[i])}</div>` : `<p class="warn">تعذر تحميل الصفحة (تحقق من الإنترنت، أو نزّل المصحف كاملاً من الإعدادات).</p>`}
+  $("#rdBody").scrollTop = 0;
+
+  // نعرض الصفحات فور تحميل كل منها (سورة البقرة 48 صفحة)
+  const token = ++readerToken;
+  const nums = [];
+  for (let p = from; p <= to; p++) nums.push(p);
+  $("#rdBody").innerHTML = nums
+    .map(p => `<section class="rd-page" id="rdp-${p}">
+      <div class="rd-head"><b>صفحة ${p}</b><span>${surah ? `سورة ${SURAH_NAMES[surah - 1]}` : surahLabel(p)}</span></div>
+      <p class="muted center small">⏳ جارٍ التحميل…</p>
     </section>`)
     .join("");
+  const alive = () => token === readerToken && reader().open;
+  // الخادم يرفض أحياناً الطلبات الكثيرة المتتالية ← نعيد المحاولة بتمهّل
+  const load = async p => {
+    for (let i = 0; i < 4; i++) {
+      const a = await getPageAyahs(p).catch(() => null);
+      if (a || !alive()) return a;
+      await new Promise(r => setTimeout(r, 1200 * (i + 1)));
+    }
+    return null;
+  };
+  let next = 0;
+  const worker = async () => {
+    while (next < nums.length) {
+      const p = nums[next++];
+      const ayahs = await load(p);
+      if (!alive()) return;
+      const shown = ayahs && surah ? ayahs.filter(a => a.s === surah) : ayahs;
+      const sec = $(`#rdp-${p}`);
+      if (sec) {
+        sec.lastElementChild.outerHTML = shown
+          ? `<div class="quran">${renderAyahs(shown)}</div>`
+          : `<p class="warn">تعذر تحميل الصفحة (تحقق من الإنترنت، أو نزّل المصحف كاملاً من الإعدادات).</p>`;
+      }
+    }
+  };
+  await Promise.all([worker(), worker(), worker()]);
 }
 
 const rd = reader();
 delegate(rd, {
   close: () => rd.close(),
   "read-done": async () => {
-    const day = +rd.dataset.day;
-    const date = dateOfDay(habits.plan.start, day);
-    const entry = habits.days[date] || (habits.days[date] = {});
-    entry.quran = 1;
+    const item = getQuranItems().find(i => i.id === rd.dataset.item) || WARD;
+    const date = dateOfDay(habits.plan.start, +rd.dataset.day);
+    setQuranItemDone(item, habits.days[date] || (habits.days[date] = {}), true);
     await saveNow();
     rd.close();
-    toast("بارك الله فيك ✓ تم تسجيل الورد");
+    toast(item.kind === "ward" ? "بارك الله فيك ✓ تم تسجيل الورد" : `بارك الله فيك ✓ ${quranItemLabel(item)}`);
     renderHabits();
     updateChrome();
   },
@@ -509,7 +650,32 @@ delegate(root(), {
     habits.custom = habits.custom.filter(x => x.id !== c.id);
     changed();
   },
-  read: () => openReader(viewDay),
+  read: el => openReader(viewDay, el.dataset.id),
+  "q-toggle": el => {
+    const it = getQuranItems().find(i => i.id === el.dataset.id);
+    if (!it) return;
+    const e = entryOf(viewDay);
+    setQuranItemDone(it, e, !quranItemDone(it, e));
+    changed();
+  },
+  "add-page": el => openEditor(+el.dataset.page),
+  "q-add": () => {
+    const kind = $("#hbQKind").value;
+    const surah = +$("#hbQSurah").value;
+    const id = quranItemId(kind, surah);
+    if (getQuranItems().some(i => i.id === id)) return toast("هذا البند موجود مسبقاً");
+    setQuranList([...getQuranItems(), { id, kind, surah }]);
+    qEditOpen = true;
+    toast(`أضيف «${quranItemLabel({ kind, surah })}» ✓`);
+    changed();
+  },
+  "q-del": el => {
+    const it = getQuranItems().find(i => i.id === el.dataset.id);
+    if (!it || !confirm(`حذف «${quranItemLabel(it)}» من بنود القرآن؟ (يبقى سجله السابق محفوظاً)`)) return;
+    setQuranList(getQuranItems().filter(i => i.id !== it.id));
+    qEditOpen = true;
+    changed();
+  },
   "day-prev": () => {
     viewDay = Math.max(1, viewDay - 1);
     viewWeek = weekOfDay(viewDay);
@@ -579,6 +745,14 @@ root().addEventListener("input", e => {
   }
 });
 
+// بنود القرآن بلوحة المفاتيح (Enter / مسافة)
+root().addEventListener("keydown", e => {
+  if ((e.key === "Enter" || e.key === " ") && e.target.matches?.('[data-action="q-toggle"]')) {
+    e.preventDefault();
+    e.target.click();
+  }
+});
+
 root().addEventListener("change", e => {
   if (e.target.id === "hbMinimal") {
     minimal = e.target.checked;
@@ -600,7 +774,9 @@ export function habitsSummary() {
     pct: sc.pct,
     minimum: sc.minimum,
     range: quranRange(day),
-    quranDone: !!habits.days[t]?.quran,
+    quranDone: quranItemDone(WARD, habits.days[t]),
+    quranItems: getQuranItems().filter(i => quranItemDone(i, habits.days[t])).length,
+    quranTotal: getQuranItems().length,
     streak: currentStreak(habits.days, habits.plan.start, t),
     week: weekOfDay(day),
   };

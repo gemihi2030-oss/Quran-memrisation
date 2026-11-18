@@ -665,6 +665,29 @@ dialog.lightbox:has(.lb-note) img { max-height: 58dvh; }
 .hb-add .row { margin-top: 8px; }
 .hb-add input { font: inherit; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); color: var(--text); min-width: 0; }
 .hb-icon-input { width: 52px; text-align: center; flex: none; }
+/* 📖 القرآن: بند بمجموعة بنود فرعية */
+.hb-row.hb-group { cursor: default; }
+.hb-row.hb-group:hover { border-color: var(--border); }
+.hb-row.hb-group.done:hover { border-color: var(--ok); }
+.hb-row.hb-group.part:hover { border-color: var(--gold); }
+.hb-count { font-size: .78rem; font-weight: 700; color: var(--muted); background: var(--surface); border: 1px solid var(--border); border-radius: 99px; padding: 1px 8px; margin-inline-start: 4px; }
+.hb-subs { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.hb-sub {
+  display: flex; align-items: flex-start; gap: 10px; padding: 9px 10px;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--surface);
+  cursor: pointer; transition: background .15s, border-color .15s; user-select: none;
+}
+.hb-sub:hover { border-color: var(--primary-2); }
+.hb-sub.done { background: var(--primary-soft); border-color: var(--ok); }
+.hb-sub .hb-check { width: 26px; height: 26px; margin-top: 0; font-size: .85rem; }
+.hb-sub.done .hb-check { background: var(--ok); border-color: var(--ok); }
+.hb-sub .hb-name { font-size: .95rem; }
+.hb-sub .hb-read { margin-top: 6px; }
+.hb-qedit select { font: inherit; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); color: var(--text); min-width: 0; }
+.hb-qlist { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.hb-qitem { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); font-size: .9rem; }
+.hb-table tr.sub th { font-size: .62rem; white-space: nowrap; width: auto; padding-inline: 2px; }
+.hb-rate.sub { font-size: .78rem; padding-inline-start: 14px; opacity: .9; }
 
 .hb-week .row.between { align-items: center; }
 .hb-table-wrap { overflow-x: auto; margin: 10px -6px 4px; }
