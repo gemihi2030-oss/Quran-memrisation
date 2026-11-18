@@ -8,6 +8,7 @@ import { todayStr, parseDate } from "../srs.js";
 import {
   HABITS, PART_NAMES, PLAN_DAYS, PLAN_WEEKS, quranRange, juzLabel, planDay, dateOfDay, weekOfDay, daysOfWeek,
   habitValue, customValue, dayScore, currentStreak, bestStreak, khatmaPages, habitRates,
+  monthDates, shiftMonth, satIndex, periodStats,
   WARD, QURAN_ICONS, getQuranItems, quranItemId, quranItemLabel, quranItemShort, quranItemDone, setQuranItemDone,
 } from "../habits.js";
 import { getPageAyahs, renderAyahs, surahLabel, surahPages, SURAH_NAMES, TOTAL_PAGES } from "../quran.js";
@@ -24,6 +25,9 @@ let saveTimer = 0;
 let minimal = Store.get("habitsMinimal", false);
 let qEditOpen = false; // إبقاء «تخصيص بنود القرآن» مفتوحاً بعد الإضافة/الحذف
 let compact = Store.get("habitsView", "detail") === "compact"; // عرض مصغّر: سطر لكل بند، بلا شروح ولا أزرار كبيرة
+let period = Store.get("habitsPeriod", "week"); // تتبّع العادات: week | month | year
+let viewMonth = null; // "YYYY-MM"
+let viewYear = null;
 
 const fmtDate = (date, opts = { weekday: "long", day: "numeric", month: "long" }) => parseDate(date).toLocaleDateString("ar-DZ", opts);
 const weekdayShort = date => parseDate(date).toLocaleDateString("ar-DZ", { weekday: "short" });
@@ -57,7 +61,7 @@ export function renderHabits() {
     ${headHTML(today, maxDay)}
     ${today > PLAN_DAYS ? finishedHTML() : ""}
     ${checklistHTML()}
-    ${weekHTML(maxDay)}
+    ${periodHTML(maxDay)}
     ${daysMapHTML(maxDay)}
     ${statsHTML(maxDay)}
     ${referenceHTML()}
@@ -316,6 +320,7 @@ function weekHTML(maxDay) {
   const totals = days.map(d => (d > maxDay ? `<td class="future"></td>` : `<td class="pct">${dayScore(habits.days[dateOfDay(start, d)], habits.custom).pct}</td>`)).join("");
   return `
     <div class="card hb-week">
+      ${periodTabsHTML()}
       <div class="row between">
         <button class="btn small" data-action="week-prev" ${w <= 1 ? "disabled" : ""} aria-label="الأسبوع السابق">→</button>
         <div class="center"><h3>📅 الأسبوع ${w} <small class="muted">من ${PLAN_WEEKS}</small></h3>
@@ -343,6 +348,149 @@ function weekHTML(maxDay) {
     </div>`;
 }
 
+// ---------- الشهر والسنة ----------
+const PERIODS = [["week", "أسبوع"], ["month", "شهر"], ["year", "سنة"]];
+const WEEK_LETTERS = ["س", "ح", "ن", "ث", "ر", "خ", "ج"]; // السبت … الجمعة
+const pad2 = n => String(n).padStart(2, "0");
+const monthLabel = (ym, opts = { month: "long", year: "numeric" }) => parseDate(`${ym}-01`).toLocaleDateString("ar-DZ", opts);
+const levelOf = pct => (pct >= 100 ? "l4" : pct >= 70 ? "l3" : pct >= 40 ? "l2" : pct > 0 ? "l1" : "l0");
+const daysWord = n => (n === 1 ? "يوم" : n === 2 ? "يومان" : n <= 10 ? "أيام" : "يوماً");
+
+function hijri(date, opts) {
+  try {
+    return parseDate(date).toLocaleDateString("ar-DZ-u-ca-islamic-umalqura-nu-latn", opts);
+  } catch {
+    return "";
+  }
+}
+// الأشهر الهجرية التي تقابل فترة ميلادية
+function hijriSpan(a, b, withMonth = true) {
+  const ya = hijri(a, { year: "numeric" });
+  const yb = hijri(b, { year: "numeric" });
+  if (!ya) return "";
+  if (!withMonth) return ya === yb ? ya : `${ya.replace(/\s*هـ$/, "")} – ${yb}`;
+  const ma = hijri(a, { month: "long" });
+  const mb = hijri(b, { month: "long" });
+  if (ya === yb) return ma === mb ? `${ma} ${ya}` : `${ma} – ${mb} ${ya}`;
+  return `${ma} ${ya} – ${mb} ${yb}`;
+}
+
+// حالة يوم في التقويم: خارج الخطة، قادم، أو بلون نسبة إنجازه
+function dayInfo(date, t) {
+  const d = planDay(habits.plan.start, date);
+  if (d < 1 || d > PLAN_DAYS) return { cls: "out", d: null };
+  if (date > t) return { cls: "future", d: null };
+  const sc = dayScore(habits.days[date], habits.custom);
+  return { cls: `${levelOf(sc.pct)}${sc.minimum ? " min" : ""}`, d, pct: sc.pct };
+}
+
+function periodTabsHTML() {
+  return `<div class="seg" role="group" aria-label="فترة التتبّع">${PERIODS.map(
+    ([p, label]) => `<button type="button" class="${period === p ? "on" : ""}" data-action="period" data-p="${p}" aria-pressed="${period === p}">${label}</button>`
+  ).join("")}</div>`;
+}
+
+function periodHTML(maxDay) {
+  if (period === "month") return monthHTML();
+  if (period === "year") return yearHTML();
+  return weekHTML(maxDay);
+}
+
+function legendHTML() {
+  return `<div class="legend hb-legend">
+    <span><i class="hb-day l0"></i>0٪</span><span><i class="hb-day l1"></i>قليل</span><span><i class="hb-day l2"></i>40٪+</span>
+    <span><i class="hb-day l3"></i>70٪+</span><span><i class="hb-day l4"></i>كامل</span><span><i class="hb-day min"></i>حد أدنى ✓</span>
+  </div>`;
+}
+
+// نسبة كل بند (البنود الفرعية للقرآن تحت بندها)
+function ratesHTML(all) {
+  const list = all.filter(r => !r.optional);
+  const subs = list.filter(r => r.sub);
+  const row = (r, sub = false) =>
+    `<div class="hb-rate${sub ? " sub" : ""}"><span>${esc(r.icon)} ${esc(r.name)}</span><div class="bar-bg"><i style="width:${r.rate}%"></i></div><b>${r.rate}٪</b></div>`;
+  return `<div class="hb-rates">${list
+    .filter(r => !r.sub)
+    .sort((a, b) => b.rate - a.rate)
+    .map(r => row(r) + (r.id === "quran" ? subs.map(x => row(x, true)).join("") : ""))
+    .join("")}</div>`;
+}
+
+function periodStatsHTML(st, label) {
+  if (!st.days) return `<p class="muted small center hb-pempty">لا توجد أيام من الخطة ${label} بعد.</p>`;
+  return `<div class="stats hb-pstats">
+      <div class="stat"><b>${st.avg}٪</b><span>متوسط الإنجاز</span></div>
+      <div class="stat"><b>${st.minDays}/${st.days}</b><span>أيام بالحد الأدنى</span></div>
+      <div class="stat"><b>${st.active}/${st.days}</b><span>أيام سجّلت فيها</span></div>
+      <div class="stat"><b>${st.pages}</b><span>صفحة من الختمة</span></div>
+    </div>
+    <h4 class="hb-ptitle">نسبة كل بند ${label}</h4>
+    ${ratesHTML(st.rates)}`;
+}
+
+function monthHTML() {
+  const t = todayStr();
+  if (!viewMonth) viewMonth = dateOfDay(habits.plan.start, viewDay).slice(0, 7);
+  const dates = monthDates(viewMonth);
+  const blanks = Array(satIndex(dates[0])).fill(`<span class="hb-cal-blank"></span>`);
+  const cells = dates.map(date => {
+    const info = dayInfo(date, t);
+    const num = +date.slice(8);
+    const extra = `${date === t ? " today" : ""}${info.d && info.d === viewDay ? " cur" : ""}`;
+    return info.d
+      ? `<button type="button" class="hb-day ${info.cls}${extra}" data-action="go-day" data-d="${info.d}" title="${fmtDate(date)} · اليوم ${info.d} · ${info.pct}٪">${num}</button>`
+      : `<span class="hb-day ${info.cls}${extra}" title="${fmtDate(date)}">${num}</span>`;
+  });
+  const st = periodStats(habits, dates, t, habits.custom);
+  return `
+    <div class="card hb-week hb-period">
+      ${periodTabsHTML()}
+      <div class="row between">
+        <button class="btn small" data-action="month-prev" aria-label="الشهر السابق">→</button>
+        <div class="center"><h3>🗓️ ${monthLabel(viewMonth)}</h3><small class="muted">${hijriSpan(dates[0], dates[dates.length - 1])}</small></div>
+        <button class="btn small" data-action="month-next" aria-label="الشهر التالي">←</button>
+      </div>
+      <div class="hb-cal">${WEEK_LETTERS.map(l => `<b>${l}</b>`).join("")}${blanks.join("")}${cells.join("")}</div>
+      ${legendHTML()}
+      ${periodStatsHTML(st, "في هذا الشهر")}
+    </div>`;
+}
+
+function yearHTML() {
+  const t = todayStr();
+  if (!viewYear) viewYear = +dateOfDay(habits.plan.start, viewDay).slice(0, 4);
+  const months = Array.from({ length: 12 }, (_, i) => `${viewYear}-${pad2(i + 1)}`);
+  const perMonth = months.map(ym => ({ ym, dates: monthDates(ym) })).map(m => ({ ...m, st: periodStats(habits, m.dates, t, habits.custom) }));
+  const blocks = perMonth.map(({ ym, dates, st }) => {
+    const blanks = `<i class="e"></i>`.repeat(satIndex(dates[0]));
+    const cells = dates.map(date => `<i class="hb-day ${dayInfo(date, t).cls}${date === t ? " today" : ""}"></i>`).join("");
+    return `<button type="button" class="hb-mini${st.days ? "" : " empty"}" data-action="open-month" data-m="${ym}" aria-label="${monthLabel(ym)}">
+      <span class="hb-mini-head"><b>${monthLabel(ym, { month: "long" })}</b>${st.days ? `<small>${st.avg}٪</small>` : ""}</span>
+      <span class="hb-mini-grid">${blanks}${cells}</span>
+    </button>`;
+  });
+  const all = perMonth.flatMap(m => m.dates);
+  const st = periodStats(habits, all, t, habits.custom);
+  const active = perMonth.filter(m => m.st.days);
+  return `
+    <div class="card hb-week hb-period">
+      ${periodTabsHTML()}
+      <div class="row between">
+        <button class="btn small" data-action="year-prev" aria-label="السنة السابقة">→</button>
+        <div class="center"><h3>📆 سنة ${viewYear}</h3><small class="muted">${hijriSpan(all[0], all[all.length - 1], false)}</small></div>
+        <button class="btn small" data-action="year-next" aria-label="السنة التالية">←</button>
+      </div>
+      <div class="hb-year">${blocks.join("")}</div>
+      ${legendHTML()}
+      ${active.length
+        ? `<h4 class="hb-ptitle">متوسط كل شهر</h4><div class="hb-rates">${active
+            .map(m => `<div class="hb-rate"><span>${monthLabel(m.ym, { month: "long" })} <small class="muted">(${m.st.days} ${daysWord(m.st.days)})</small></span><div class="bar-bg"><i style="width:${m.st.avg}%"></i></div><b>${m.st.avg}٪</b></div>`)
+            .join("")}</div>`
+        : ""}
+      ${periodStatsHTML(st, "في هذه السنة")}
+    </div>`;
+}
+
 // ---------- خريطة الأيام الـ75 ----------
 function daysMapHTML(maxDay) {
   const { start } = habits.plan;
@@ -354,17 +502,14 @@ function daysMapHTML(maxDay) {
       continue;
     }
     const sc = dayScore(habits.days[date], habits.custom);
-    const lvl = sc.pct >= 100 ? "l4" : sc.pct >= 70 ? "l3" : sc.pct >= 40 ? "l2" : sc.pct > 0 ? "l1" : "l0";
+    const lvl = levelOf(sc.pct);
     cells += `<button type="button" class="hb-day ${lvl}${d === viewDay ? " cur" : ""}${sc.minimum ? " min" : ""}" data-action="go-day" data-d="${d}" title="اليوم ${d} · ${sc.pct}٪">${d}</button>`;
   }
   return `
     <div class="card">
       <h3>🗓️ أيام الخطة</h3>
       <div class="hb-map">${cells}</div>
-      <div class="legend hb-legend">
-        <span><i class="hb-day l0"></i>0٪</span><span><i class="hb-day l1"></i>قليل</span><span><i class="hb-day l2"></i>40٪+</span>
-        <span><i class="hb-day l3"></i>70٪+</span><span><i class="hb-day l4"></i>كامل</span><span><i class="hb-day min"></i>حد أدنى ✓</span>
-      </div>
+      ${legendHTML()}
     </div>`;
 }
 
@@ -378,10 +523,6 @@ function statsHTML(maxDay) {
     sum += sc.pct;
     if (sc.minimum) minDays++;
   }
-  const all = habitRates(habits.days, start, maxDay, habits.custom).filter(r => !r.optional);
-  const subs = all.filter(r => r.sub);
-  const rateRow = (r, sub = false) =>
-    `<div class="hb-rate${sub ? " sub" : ""}"><span>${esc(r.icon)} ${esc(r.name)}</span><div class="bar-bg"><i style="width:${r.rate}%"></i></div><b>${r.rate}٪</b></div>`;
   return `
     <div class="card">
       <h3>📊 إحصائياتي</h3>
@@ -391,11 +532,7 @@ function statsHTML(maxDay) {
         <div class="stat"><b>${bestStreak(habits.days, start, maxDay)}</b><span>أطول استمرار</span></div>
         <div class="stat"><b>${Math.round((khatmaPages(habits.days, start) / TOTAL_PAGES) * 100)}٪</b><span>من الختمة</span></div>
       </div>
-      <div class="hb-rates">${all
-        .filter(r => !r.sub)
-        .sort((a, b) => b.rate - a.rate)
-        .map(r => rateRow(r) + (r.id === "quran" ? subs.map(s => rateRow(s, true)).join("") : ""))
-        .join("")}</div>
+      ${ratesHTML(habitRates(habits.days, start, maxDay, habits.custom))}
     </div>`;
 }
 
@@ -718,6 +855,33 @@ delegate(root(), {
     viewWeek = weekOfDay(viewDay);
     renderHabits();
     window.scrollTo({ top: 0, behavior: "smooth" });
+  },
+  period: el => {
+    period = el.dataset.p;
+    Store.set("habitsPeriod", period);
+    renderHabits();
+  },
+  "month-prev": () => {
+    viewMonth = shiftMonth(viewMonth, -1);
+    renderHabits();
+  },
+  "month-next": () => {
+    viewMonth = shiftMonth(viewMonth, 1);
+    renderHabits();
+  },
+  "year-prev": () => {
+    viewYear -= 1;
+    renderHabits();
+  },
+  "year-next": () => {
+    viewYear += 1;
+    renderHabits();
+  },
+  "open-month": el => {
+    viewMonth = el.dataset.m;
+    period = "month";
+    Store.set("habitsPeriod", period);
+    renderHabits();
   },
   "week-prev": () => {
     viewWeek = Math.max(1, viewWeek - 1);

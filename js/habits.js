@@ -194,25 +194,82 @@ export function khatmaPages(days, start) {
 // نسبة الثبات على كل بند حتى يوم معيّن (لحصاد الخطة)
 export function habitRates(days, start, upToDay, custom = []) {
   const n = Math.max(1, Math.min(upToDay, PLAN_DAYS));
+  return habitRatesForDates(days, Array.from({ length: n }, (_, i) => dateOfDay(start, i + 1)), custom);
+}
+
+// نسبة الثبات على كل بند في قائمة أيام (أسبوع، شهر، سنة…)
+export function habitRatesForDates(days, dates, custom = []) {
+  const n = Math.max(1, dates.length);
+  const pct = x => Math.round((x / n) * 100);
   const rates = [];
   for (const h of HABITS) {
-    let s = 0;
-    for (let d = 1; d <= n; d++) s += habitValue(h, days[dateOfDay(start, d)]);
-    rates.push({ id: h.id, icon: h.icon, name: h.name, optional: !!h.optional, rate: Math.round((s / n) * 100) });
+    let v = 0;
+    for (const d of dates) v += habitValue(h, days[d]);
+    rates.push({ id: h.id, icon: h.icon, name: h.name, optional: !!h.optional, rate: pct(v) });
     if (h.group) {
       for (const it of quranItems) {
         let k = 0;
-        for (let d = 1; d <= n; d++) if (quranItemDone(it, days[dateOfDay(start, d)])) k++;
-        rates.push({ id: `q:${it.id}`, icon: QURAN_ICONS[it.kind], name: quranItemLabel(it), sub: true, rate: Math.round((k / n) * 100) });
+        for (const d of dates) if (quranItemDone(it, days[d])) k++;
+        rates.push({ id: `q:${it.id}`, icon: QURAN_ICONS[it.kind], name: quranItemLabel(it), sub: true, rate: pct(k) });
       }
     }
   }
   for (const c of custom) {
-    let s = 0;
-    for (let d = 1; d <= n; d++) s += customValue(c, days[dateOfDay(start, d)]);
-    rates.push({ id: c.id, icon: c.icon || "⭐", name: c.name, custom: true, rate: Math.round((s / n) * 100) });
+    let v = 0;
+    for (const d of dates) v += customValue(c, days[d]);
+    rates.push({ id: c.id, icon: c.icon || "⭐", name: c.name, custom: true, rate: pct(v) });
   }
   return rates;
+}
+
+// ---------- عرض الشهر والسنة ----------
+const pad2 = n => String(n).padStart(2, "0");
+
+// أيام شهر ميلادي: "2026-11" ← ["2026-11-01", …, "2026-11-30"]
+export function monthDates(ym) {
+  const [y, m] = ym.split("-").map(Number);
+  const n = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return Array.from({ length: n }, (_, i) => `${ym}-${pad2(i + 1)}`);
+}
+
+// الشهر بعد/قبل k أشهر: shiftMonth("2026-12", 1) = "2027-01"
+export function shiftMonth(ym, k) {
+  const [y, m] = ym.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + k, 1));
+  return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}`;
+}
+
+// موضع اليوم في أسبوع يبدأ بالسبت: السبت 0 … الجمعة 6
+export const satIndex = date => (new Date(`${date}T00:00:00Z`).getUTCDay() + 1) % 7;
+
+// إحصاء فترة: نحسب أيام الخطة التي مضت فقط (لا المستقبل ولا ما قبل الخطة أو بعدها)
+export function periodStats(h, dates, today, custom = []) {
+  const counted = h?.plan
+    ? dates.filter(d => {
+        const n = planDay(h.plan.start, d);
+        return n >= 1 && n <= PLAN_DAYS && d <= today;
+      })
+    : [];
+  let sum = 0;
+  let minDays = 0;
+  let pages = 0;
+  let active = 0;
+  for (const d of counted) {
+    const e = h.days[d];
+    const sc = dayScore(e, custom);
+    sum += sc.pct;
+    if (sc.minimum) minDays++;
+    if (sc.pct > 0) active++;
+    if (e?.quran) pages += quranRange(planDay(h.plan.start, d)).pages;
+  }
+  return {
+    days: counted.length,
+    active,
+    avg: counted.length ? Math.round(sum / counted.length) : 0,
+    minDays,
+    pages,
+    rates: counted.length ? habitRatesForDates(h.days, counted, custom) : [],
+  };
 }
 
 // ---------- 🤲 أدعيتي ----------

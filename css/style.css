@@ -829,3 +829,37 @@ dialog.lightbox:has(.lb-note) img { max-height: 58dvh; }
 /* في العرض المصغّر: سطران من النص المحفوظ حتى لعنصر «الصورة فقط» */
 .note-snippet { display: none; }
 .note-list.compact .note-snippet { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin: 0 0 2px; font-size: .92rem; line-height: 1.7; color: var(--muted); white-space: pre-wrap; }
+
+/* ---------- تتبّع العادات: أسبوع / شهر / سنة ---------- */
+.seg { display: flex; gap: 2px; padding: 3px; margin-bottom: 12px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-2); }
+.seg button { flex: 1; min-height: 36px; border: 0; border-radius: 11px; background: none; font: inherit; font-weight: 700; color: var(--muted); cursor: pointer; }
+.seg button.on { background: var(--primary-soft); color: var(--primary-2); }
+.seg button:hover:not(.on) { color: var(--text); }
+.hb-period h3 small { font-weight: 500; }
+.hb-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-top: 12px; }
+.hb-cal > b { text-align: center; font-size: .78rem; color: var(--muted); padding-bottom: 2px; }
+.hb-cal .hb-day { font-size: .82rem; }
+.hb-day.out { background: transparent; color: var(--muted); opacity: .45; cursor: default; }
+.hb-day.today { outline: 2px solid var(--gold); outline-offset: 1px; }
+.hb-day.cur { outline: 3px solid var(--primary); outline-offset: 1px; }
+.hb-pstats { margin-top: 12px; }
+.hb-ptitle { margin: 16px 0 4px; color: var(--gold); font-size: .95rem; }
+.hb-pempty { margin: 14px 0 4px; }
+.hb-year { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+@media (min-width: 560px) { .hb-year { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.hb-mini {
+  display: flex; flex-direction: column; gap: 5px; padding: 7px 6px; min-width: 0;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2);
+  font: inherit; color: var(--text); cursor: pointer; text-align: start;
+}
+.hb-mini:hover { border-color: var(--primary-2); }
+.hb-mini.empty { opacity: .6; }
+.hb-mini-head { display: flex; justify-content: space-between; align-items: baseline; gap: 4px; font-size: .78rem; }
+.hb-mini-head small { color: var(--primary-2); font-weight: 800; }
+.hb-mini-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.hb-mini-grid i { display: block; aspect-ratio: 1; border-radius: 2px; }
+.hb-mini-grid .hb-day { font-size: 0; border: 0; box-shadow: none; cursor: inherit; }
+.hb-mini-grid .hb-day.l0 { background: var(--lv-none); }
+.hb-mini-grid .hb-day.out { background: var(--lv-none); opacity: .3; }
+.hb-mini-grid .hb-day.future { border: 0; background: var(--lv-none); opacity: .6; }
+.hb-mini-grid .hb-day.today { outline: 1.5px solid var(--gold); outline-offset: 0; }

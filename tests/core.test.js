@@ -317,3 +317,32 @@ test("my duas: paste, clean, group by topic, reorder", async () => {
   assert.deepEqual(H.moveDua(list, "b", 1), list, "only one in its topic");
   assert.deepEqual(H.moveDua(list, "zz", 1), list);
 });
+
+test("habits: month and year periods", async () => {
+  const H = await import("../js/habits.js");
+  assert.equal(H.monthDates("2026-11").length, 30);
+  assert.equal(H.monthDates("2028-02").length, 29, "leap year");
+  assert.deepEqual([H.monthDates("2027-01")[0], H.monthDates("2027-01").at(-1)], ["2027-01-01", "2027-01-31"]);
+  assert.equal(H.shiftMonth("2026-12", 1), "2027-01");
+  assert.equal(H.shiftMonth("2027-01", -1), "2026-12");
+  assert.equal(H.shiftMonth("2026-11", -12), "2025-11");
+  // أسبوع يبدأ بالسبت: 2026-11-21 سبت، 2026-11-18 أربعاء، 2026-11-20 جمعة
+  assert.equal(H.satIndex("2026-11-21"), 0);
+  assert.equal(H.satIndex("2026-11-18"), 4);
+  assert.equal(H.satIndex("2026-11-20"), 6);
+  // الخطة تبدأ 2026-11-18، اليوم 2026-11-20: تُحسب 3 أيام فقط من نوفمبر
+  const full = { quran: 1, morning: 1, evening: 1, prayers: [1, 1, 1, 1, 1], sleep: 1, qiyam: 1, sunan: [1, 1, 1, 1], duha: 1, dua: 1, sadaqa: 1 };
+  const h = { plan: { start: "2026-11-18" }, days: { "2026-11-18": full, "2026-11-19": { morning: 1 }, "2026-11-25": full } };
+  const st = H.periodStats(h, H.monthDates("2026-11"), "2026-11-20");
+  assert.equal(st.days, 3);
+  assert.equal(st.active, 2);
+  assert.equal(st.minDays, 1);
+  assert.equal(st.pages, 8, "ward of day 1");
+  assert.equal(st.rates.find(r => r.id === "morning").rate, 67);
+  assert.equal(H.periodStats(h, H.monthDates("2026-10"), "2026-11-20").days, 0, "before the plan");
+  assert.equal(H.periodStats({ plan: null, days: {} }, H.monthDates("2026-11"), "2026-11-20").days, 0);
+  // نفس النتيجة بين habitRates (أيام الخطة) و habitRatesForDates
+  const a = H.habitRates(h.days, "2026-11-18", 3);
+  const b = H.habitRatesForDates(h.days, ["2026-11-18", "2026-11-19", "2026-11-20"]);
+  assert.deepEqual(a, b);
+});
