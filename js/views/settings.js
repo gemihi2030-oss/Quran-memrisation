@@ -1,6 +1,6 @@
 // الإعدادات: المراجعة، العرض، العمل دون إنترنت، النسخ الاحتياطي
 import { $, delegate, toast, downloadFile } from "../util.js";
-import { settings, saveSettings, pages, loadPages, normalizeRecord, savePages, reviewLog, DEFAULTS, motivations, saveMotivations } from "../state.js";
+import { settings, saveSettings, pages, loadPages, normalizeRecord, savePages, reviewLog, DEFAULTS, motivations, saveMotivations, habits, setHabits, saveHabits } from "../state.js";
 import { DB, Store } from "../db.js";
 import { cachedTextCount, downloadWholeQuran, TOTAL_PAGES } from "../quran.js";
 import { todayStr } from "../srs.js";
@@ -85,6 +85,7 @@ async function exportData() {
     reviewLog: reviewLog(),
     pages: [...pages.values()],
     motivation: motivations,
+    habits,
   };
   downloadFile(`quran-memorisation-${todayStr()}.json`, JSON.stringify(data));
   Store.set("lastExport", todayStr());
@@ -109,6 +110,16 @@ async function importData(file) {
   if (newMotiv.length) {
     motivations.push(...newMotiv);
     await saveMotivations();
+  }
+  // خطة العادات: إن لم توجد خطة نأخذ المستوردة كما هي، وإلا نضيف الأيام والعادات الناقصة فقط
+  if (data.habits && typeof data.habits === "object") {
+    if (!habits.plan) setHabits(data.habits);
+    else {
+      for (const [d, e] of Object.entries(data.habits.days || {})) if (!habits.days[d]) habits.days[d] = e;
+      for (const c of data.habits.custom || []) if (c?.id && !habits.custom.some(x => x.id === c.id)) habits.custom.push(c);
+      for (const [w, f] of Object.entries(data.habits.weeks || {})) habits.weeks[w] = { ...(f || {}), ...(habits.weeks[w] || {}) };
+    }
+    await saveHabits();
   }
   if (data.reviewLog && typeof data.reviewLog === "object") {
     const merged = { ...data.reviewLog };
@@ -150,6 +161,7 @@ delegate(root(), {
     Store.set("reviewLog", {});
     pages.clear();
     motivations.length = 0;
+    setHabits(null);
     toast("تم حذف البيانات");
     show("home");
   },

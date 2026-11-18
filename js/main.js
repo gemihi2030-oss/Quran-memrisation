@@ -8,6 +8,7 @@ import { renderReview } from "./views/review.js";
 import { renderMushaf } from "./views/mushaf.js";
 import { renderSettings } from "./views/settings.js";
 import { renderMaps } from "./views/maps.js";
+import { renderHabits } from "./views/habits.js";
 
 window.__appStarted = true; // كل الملفات حُمّلت بنجاح (انظر الإصلاح الذاتي في index.html)
 
@@ -15,6 +16,7 @@ register("home", renderHome);
 register("review", renderReview);
 register("pages", renderMushaf);
 register("maps", renderMaps);
+register("habits", renderHabits);
 register("settings", renderSettings);
 
 onAfterRender(() => {
@@ -33,6 +35,7 @@ async function init() {
   applyTheme();
   updateDates();
   $$(".tabbar button").forEach(b => b.addEventListener("click", () => show(b.dataset.view)));
+  $("#openSettings").addEventListener("click", () => show("settings"));
   try {
     await loadPages();
   } catch (e) {

@@ -210,3 +210,47 @@ test("manual text parsing (v1 compatible)", () => {
     { s: null, a: null, text: "آية بلا رقم" },
   ]);
 });
+
+test("habits plan: schedule matches the 75-day plan", async () => {
+  const H = await import("../js/habits.js");
+  assert.deepEqual(H.quranRange(1), { from: 1, to: 8, pages: 8 });
+  assert.deepEqual(H.quranRange(7), { from: 49, to: 56, pages: 8 }); // «حتى صفحة 56 من 604»
+  assert.deepEqual(H.quranRange(74), { from: 585, to: 592, pages: 8 });
+  assert.deepEqual(H.quranRange(75), { from: 593, to: 604, pages: 12 }); // اليوم 75: 12 صفحة
+  assert.equal(H.quranRange(76), null);
+  let total = 0;
+  for (let d = 1; d <= 75; d++) total += H.quranRange(d).pages;
+  assert.equal(total, 604, "a full khatma");
+  assert.equal(H.juzLabel(H.quranRange(1)), "الجزء 1");
+  assert.equal(H.juzLabel(H.quranRange(3)), "الجزء 1 و2"); // ص 17–24
+  assert.equal(H.weekOfDay(1), 1);
+  assert.equal(H.weekOfDay(8), 2);
+  assert.equal(H.weekOfDay(75), 11);
+  assert.deepEqual(H.daysOfWeek(11), [71, 72, 73, 74, 75]);
+  assert.equal(H.planDay("2026-11-18", "2026-11-18"), 1);
+  assert.equal(H.dateOfDay("2026-11-18", 75), "2027-01-31");
+});
+
+test("habits plan: scoring, minimum and streaks", async () => {
+  const H = await import("../js/habits.js");
+  const full = { quran: 1, morning: 1, evening: 1, prayers: [1, 1, 1, 1, 1], sleep: 1, qiyam: 1, sunan: [1, 1, 1, 1], duha: 1, dua: 1, sadaqa: 1 };
+  assert.equal(H.dayScore(full).pct, 100);
+  assert.equal(H.dayScore({}).pct, 0);
+  assert.equal(H.dayScore({ prayers: [1, 1, 0, 0, 0] }).done, 0.4, "parts count by fraction");
+  assert.equal(H.dayScore({ ...full, fast: 1 }).pct, 100, "optional fasting never exceeds 100");
+  const minimum = { quran: 1, morning: 1, evening: 1, qiyam: 1, sunan: [1, 1, 1, 1], sadaqa: 1 };
+  assert.equal(H.minimumMet(minimum), true);
+  assert.equal(H.minimumMet({ ...minimum, sunan: [1, 1, 1, 0] }), false);
+  const custom = [{ id: "c1", name: "حفظ صفحة" }];
+  assert.equal(H.dayScore({ ...full, custom: { c1: 1 } }, custom).pct, 100);
+  assert.equal(H.dayScore(full, custom).pct, 91);
+  const start = "2026-11-01";
+  const days = { "2026-11-01": minimum, "2026-11-02": minimum, "2026-11-03": {}, "2026-11-04": minimum, "2026-11-05": minimum, "2026-11-06": minimum };
+  assert.equal(H.currentStreak(days, start, "2026-11-06"), 3);
+  assert.equal(H.currentStreak(days, start, "2026-11-07"), 3, "today not done yet keeps the streak");
+  assert.equal(H.bestStreak(days, start, 6), 3);
+  assert.equal(H.khatmaPages({ "2026-11-01": { quran: 1 }, "2026-11-02": { quran: 1 } }, start), 16);
+  const rates = H.habitRates(days, start, 6);
+  assert.equal(rates.find(r => r.id === "quran").rate, 83);
+  assert.equal(rates.find(r => r.id === "duha").rate, 0);
+});

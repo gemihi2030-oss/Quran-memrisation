@@ -58,11 +58,34 @@ export async function saveMotivations() {
   await DB.pages.put({ page: MOTIVATION_KEY, items: motivations });
 }
 
+// ---------- عاداتي: خطة ملء الصحيفة ----------
+// plan: { start, name } · days: { "YYYY-MM-DD": { quran, morning, prayers: [..], custom: { id: 1 } } }
+// weeks: { "1": { topic, duas, notes } } · custom: [{ id, name, icon }] · harvest: { wird, keep, add, duas }
+export const HABITS_KEY = "__habits";
+export const habits = { plan: null, days: {}, weeks: {}, custom: [], harvest: {} };
+
+export function setHabits(data) {
+  habits.plan = data?.plan?.start ? data.plan : null;
+  habits.days = data?.days && typeof data.days === "object" ? data.days : {};
+  habits.weeks = data?.weeks && typeof data.weeks === "object" ? data.weeks : {};
+  habits.custom = Array.isArray(data?.custom) ? data.custom.filter(c => c && c.id && c.name) : [];
+  habits.harvest = data?.harvest && typeof data.harvest === "object" ? data.harvest : {};
+}
+
+export async function saveHabits() {
+  await DB.pages.put({ page: HABITS_KEY, ...habits });
+}
+
 export async function loadPages() {
   const all = await DB.pages.all();
   pages.clear();
   motivations.length = 0;
+  setHabits(null);
   for (const r of all) {
+    if (r.page === HABITS_KEY) {
+      setHabits(r);
+      continue;
+    }
     if (r.page === MOTIVATION_KEY) {
       if (Array.isArray(r.items)) motivations.push(...r.items.filter(m => m && m.id));
       continue;

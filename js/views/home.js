@@ -1,6 +1,7 @@
 // الشاشة الرئيسية: الإحصائيات، المراجعات القادمة، الأجزاء، الصفحات الضعيفة
 import { $, esc, delegate } from "../util.js";
 import { pages, dueList, streak, retention, todayCount, weakPages, motivations } from "../state.js";
+import { habitsSummary } from "./habits.js";
 import { currentMotivation, motivationItemHTML, openNoteEditor, openMotivationList, viewMotivation, toggleDisplay } from "./notes.js";
 import { Store } from "../db.js";
 import { TOTAL_PAGES, juzRange, surahLabel, firstSurahOfPage } from "../quran.js";
@@ -42,6 +43,7 @@ export function renderHome() {
            <button class="btn primary big" data-action="practice">💪 تدرّب الآن على صفحاتي</button>`}
       <button class="btn ghost" data-action="add">＋ حفظت صفحة جديدة</button>
     </div>
+    ${habitsCardHTML()}
     ${motivationHTML()}
     ${currentSurahHTML()}
     ${recentHTML(t)}
@@ -68,6 +70,7 @@ function renderWelcome() {
       <button class="btn primary big" data-action="add">＋ سجّل أول صفحة حفظتها</button>
       <button class="btn ghost" data-action="range">📚 أحفظ صفحات من قبل؟ سجّلها دفعة واحدة (مثلاً جزء عمّ)</button>
     </div>
+    ${habitsCardHTML()}
     ${motivationHTML()}
     ${tipsHTML(true)}
   `;
@@ -76,6 +79,35 @@ function renderWelcome() {
 function nextDueLabel(t) {
   const next = [...pages.values()].map(p => p.srs.due).filter(d => d > t).sort()[0];
   return next ? relativeDay(next, t) : "—";
+}
+
+// 📿 خطة ملء الصحيفة: ملخص اليوم
+function habitsCardHTML() {
+  const s = habitsSummary();
+  if (!s) {
+    return `<div class="card hb-home">
+      <h2>📿 خطة ملء الصحيفة</h2>
+      <p class="muted small">75 يوماً تملأ فيها صحيفتك: ورد قرآن يومي (ختمة كاملة)، أذكار، صلوات ونوافل، دعاء وصدقة — مع تتبّع عاداتك يوماً بيوم.</p>
+      <button class="btn" data-action="open-habits">🚀 ابدأ الخطة ←</button>
+    </div>`;
+  }
+  if (s.notStarted) {
+    return `<div class="card hb-home"><h2>📿 خطة ملء الصحيفة</h2>
+      <p class="muted">تبدأ خطتك بعد ${s.daysLeft} ${s.daysLeft <= 10 && s.daysLeft >= 3 ? "أيام" : s.daysLeft === 1 ? "يوم" : s.daysLeft === 2 ? "يومين" : "يوماً"} إن شاء الله.</p>
+      <button class="btn" data-action="open-habits">عرض الخطة ←</button></div>`;
+  }
+  if (s.finished) {
+    return `<div class="card hb-home"><h2>📿 خطة ملء الصحيفة 🎉</h2>
+      <p class="muted">اكتملت الخطة بفضل الله (${s.pages} من 604 صفحة). راجع «حصاد الخطة» واكتب خطتك لرمضان.</p>
+      <button class="btn" data-action="open-habits">🌾 حصاد الخطة ←</button></div>`;
+  }
+  return `<div class="card hb-home" data-action="open-habits" role="button" tabindex="0">
+    <div class="row between"><h2>📿 خطة ملء الصحيفة</h2><span class="pill">اليوم ${s.day} / 75</span></div>
+    <div class="progress"><div class="bar" style="width:${s.pct}%"></div></div>
+    <p class="small">${s.pct}٪ من بنود اليوم${s.minimum ? " · ✓ الحد الأدنى" : ""} · 🔥 ${s.streak}</p>
+    <p class="small">📖 ورد اليوم: ص ${s.range.from}–${s.range.to}${s.quranDone ? " ✓" : ""}</p>
+    <button class="btn primary" data-action="open-habits">✅ سجّل عاداتي اليوم ←</button>
+  </div>`;
 }
 
 // 💚 تحفيز اليوم: يبدأ كل يوم بعنصر مختلف، والأزرار (أو السحب بالإصبع) تتنقل بين العناصر
@@ -230,6 +262,7 @@ delegate(root(), {
   "all-pages": () => showPagesList(),
   "add-page": el => openEditor(+el.dataset.page),
   "add-motivation": () => openNoteEditor({ kind: "motivation" }),
+  "open-habits": () => show("habits"),
   "next-motivation": () => swapMotivation(1),
   "prev-motivation": () => swapMotivation(-1),
   "toggle-display": async el => {

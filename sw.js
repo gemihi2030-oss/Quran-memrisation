@@ -1,5 +1,5 @@
 // عامل الخدمة: يجعل التطبيق يعمل دون إنترنت
-const CACHE = "quran-mem-v2.8.1";
+const CACHE = "quran-mem-v2.9.0";
 const ASSETS = [
   "./", "index.html", "css/style.css", "manifest.webmanifest",
   "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png",
@@ -8,6 +8,7 @@ const ASSETS = [
   "js/views/home.js", "js/views/review.js", "js/views/mushaf.js", "js/views/editor.js",
   "js/views/detail.js", "js/views/range.js", "js/views/settings.js", "js/views/cards.js",
   "js/views/lightbox.js", "js/views/notes.js", "js/views/maps.js",
+  "js/habits.js", "js/views/habits.js",
 ];
 
 self.addEventListener("install", e => {
