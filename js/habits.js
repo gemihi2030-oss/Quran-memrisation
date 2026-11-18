@@ -19,7 +19,7 @@ export const HABITS = [
   { id: "qiyam", icon: "🌌", name: "قيام الليل والوتر", hint: "ولو ركعتين · ركعة وتر على الأقل", core: true },
   { id: "sunan", icon: "🕌", name: "السنن الرواتب", hint: "12 ركعة (العصر ليس له راتبة)", parts: ["ف", "ظ", "م", "ش"], core: true },
   { id: "duha", icon: "☀️", name: "صلاة الضحى", hint: "ركعتان فأكثر" },
-  { id: "dua", icon: "🤲", name: "الدعاء", hint: "بأدعية الأسبوع" },
+  { id: "dua", icon: "🤲", name: "الدعاء", hint: "من أدعيتي وأدعية الأسبوع" },
   { id: "sadaqa", icon: "💝", name: "الصدقة", hint: "ولو بالقليل", core: true },
   { id: "fast", icon: "🌾", name: "صيام تطوع", hint: "اختياري · الاثنين والخميس", optional: true },
 ];
@@ -213,4 +213,54 @@ export function habitRates(days, start, upToDay, custom = []) {
     rates.push({ id: c.id, icon: c.icon || "⭐", name: c.name, custom: true, rate: Math.round((s / n) * 100) });
   }
   return rates;
+}
+
+// ---------- 🤲 أدعيتي ----------
+// قائمة أدعية شخصية [{ id, text, cat }] تُعرض مجمّعة حسب الموضوع بهذا الترتيب
+export const DUA_CATS = [
+  { id: "rizq", icon: "💼", name: "العمل والرزق" },
+  { id: "deen", icon: "📖", name: "القرآن والعبادة" },
+  { id: "family", icon: "👨‍👩‍👦", name: "أهلي" },
+  { id: "akhira", icon: "🤍", name: "المغفرة والآخرة" },
+  { id: "other", icon: "🤲", name: "أدعية أخرى" },
+];
+
+export function normalizeDuas(list) {
+  if (!Array.isArray(list)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const d of list) {
+    if (!d || !d.id || typeof d.text !== "string" || !d.text.trim() || seen.has(String(d.id))) continue;
+    seen.add(String(d.id));
+    out.push({ id: String(d.id), text: d.text.trim(), cat: DUA_CATS.some(c => c.id === d.cat) ? d.cat : "other" });
+  }
+  return out;
+}
+
+// نص ملصوق ← أدعية: كل سطر دعاء (بلا ترقيم ولا أسطر فارغة)
+export function splitDuas(text) {
+  return String(text || "")
+    .split(/\r?\n/)
+    .map(l => l.replace(/^\s*(?:[-–•*·]|[0-9٠-٩]+\s*[.)\-–:])\s*/, "").replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+}
+
+// مجمّعة حسب الموضوع بترتيب DUA_CATS، مع ترقيم متصل (n)
+export function groupDuas(duas) {
+  let n = 0;
+  return DUA_CATS.map(c => ({ ...c, items: duas.filter(d => d.cat === c.id) }))
+    .filter(g => g.items.length)
+    .map(g => ({ ...g, items: g.items.map(d => ({ ...d, n: ++n })) }));
+}
+
+// تقديم/تأخير دعاء داخل موضوعه (dir = -1 أو 1)
+export function moveDua(duas, id, dir) {
+  const i = duas.findIndex(d => d.id === id);
+  if (i < 0) return duas;
+  let j = i + dir;
+  while (j >= 0 && j < duas.length && duas[j].cat !== duas[i].cat) j += dir;
+  if (j < 0 || j >= duas.length) return duas;
+  const out = [...duas];
+  [out[i], out[j]] = [out[j], out[i]];
+  return out;
 }

@@ -22,7 +22,7 @@
         "js/state.js", "js/router.js", "js/quran.js", "js/quran-meta.js", "js/media.js", "js/views/home.js", "js/views/review.js",
         "js/views/mushaf.js", "js/views/editor.js", "js/views/detail.js", "js/views/range.js", "js/views/settings.js",
         "js/views/cards.js", "js/views/lightbox.js", "js/views/notes.js", "js/views/maps.js",
-        "js/habits.js", "js/views/habits.js"];
+        "js/habits.js", "js/views/habits.js", "js/views/duas.js"];
       Promise.all(files.map(function (f) { return fetch(f, { cache: "reload" }).catch(function () {}); }))
         .then(function () { location.reload(); });
     };
@@ -64,6 +64,7 @@
   <dialog id="noteDialog" class="sheet"></dialog>
   <dialog id="motivationDialog" class="sheet"></dialog>
   <dialog id="readerDialog" class="sheet"></dialog>
+  <dialog id="duaDialog" class="sheet"></dialog>
   <dialog id="imageDialog" class="lightbox"></dialog>
 
   <nav class="tabbar">

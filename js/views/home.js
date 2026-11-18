@@ -2,6 +2,7 @@
 import { $, esc, delegate } from "../util.js";
 import { pages, dueList, streak, retention, todayCount, weakPages, motivations } from "../state.js";
 import { habitsSummary } from "./habits.js";
+import { openDuas } from "./duas.js";
 import { currentMotivation, motivationItemHTML, openNoteEditor, openMotivationList, viewMotivation, toggleDisplay } from "./notes.js";
 import { Store } from "../db.js";
 import { TOTAL_PAGES, juzRange, surahLabel, firstSurahOfPage } from "../quran.js";
@@ -106,7 +107,10 @@ function habitsCardHTML() {
     <div class="progress"><div class="bar" style="width:${s.pct}%"></div></div>
     <p class="small">${s.pct}٪ من بنود اليوم${s.minimum ? " · ✓ الحد الأدنى" : ""} · 🔥 ${s.streak}</p>
     <p class="small">📖 القرآن: ${s.quranItems}/${s.quranTotal} · ورد اليوم ص ${s.range.from}–${s.range.to}${s.quranDone ? " ✓" : ""}</p>
-    <button class="btn primary" data-action="open-habits">✅ سجّل عاداتي اليوم ←</button>
+    <div class="row gap-s wrap">
+      <button class="btn primary grow" data-action="open-habits">✅ سجّل عاداتي اليوم ←</button>
+      <button class="btn" data-action="open-duas">🤲 أدعيتي</button>
+    </div>
   </div>`;
 }
 
@@ -263,6 +267,7 @@ delegate(root(), {
   "add-page": el => openEditor(+el.dataset.page),
   "add-motivation": () => openNoteEditor({ kind: "motivation" }),
   "open-habits": () => show("habits"),
+  "open-duas": () => openDuas({ onChange: renderHome }),
   "next-motivation": () => swapMotivation(1),
   "prev-motivation": () => swapMotivation(-1),
   "toggle-display": async el => {

@@ -285,3 +285,35 @@ test("habits plan: Quran items (ward, surah reading, memorisation)", async () =>
   assert.equal(H.habitValue(quran, { quran: 1 }), 0.5);
   H.setQuranItems(H.normalizeQuranItems());
 });
+
+test("my duas: paste, clean, group by topic, reorder", async () => {
+  const H = await import("../js/habits.js");
+  // لصق عدة أدعية: سطر لكل دعاء، بلا ترقيم ولا أسطر فارغة
+  assert.deepEqual(H.splitDuas("1. اللهم اغفر لي\n\n٢- ربنا آتنا في الدنيا حسنة  \r\n- اللهم   ارزقني\n• يا رب"), [
+    "اللهم اغفر لي", "ربنا آتنا في الدنيا حسنة", "اللهم ارزقني", "يا رب",
+  ]);
+  assert.deepEqual(H.splitDuas(""), []);
+  // تنظيف: موضوع غير معروف ← «أدعية أخرى»، والفارغ والمكرر يُحذف
+  const list = H.normalizeDuas([
+    { id: "a", text: " عمل ", cat: "rizq" },
+    { id: "b", text: "حفظ", cat: "deen" },
+    { id: "c", text: "مال", cat: "rizq" },
+    { id: "d", text: "؟", cat: "xxx" },
+    { id: "e", text: "   ", cat: "rizq" },
+    { id: "a", text: "مكرر", cat: "rizq" },
+    null,
+  ]);
+  assert.deepEqual(list.map(d => d.id), ["a", "b", "c", "d"]);
+  assert.equal(list[0].text, "عمل");
+  assert.equal(list[3].cat, "other");
+  assert.deepEqual(H.normalizeDuas(undefined), []);
+  // التجميع بترتيب المواضيع مع ترقيم متصل
+  const g = H.groupDuas(list);
+  assert.deepEqual(g.map(x => x.id), ["rizq", "deen", "other"]);
+  assert.deepEqual(g.flatMap(x => x.items.map(d => `${d.n}:${d.id}`)), ["1:a", "2:c", "3:b", "4:d"]);
+  // التقديم والتأخير داخل الموضوع نفسه (يتخطى أدعية المواضيع الأخرى)
+  assert.deepEqual(H.moveDua(list, "c", -1).map(d => d.id), ["c", "b", "a", "d"]);
+  assert.deepEqual(H.moveDua(list, "a", -1), list, "already first");
+  assert.deepEqual(H.moveDua(list, "b", 1), list, "only one in its topic");
+  assert.deepEqual(H.moveDua(list, "zz", 1), list);
+});

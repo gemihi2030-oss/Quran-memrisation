@@ -3,7 +3,7 @@ import { DB, Store } from "./db.js";
 import { todayStr, addDays, daysBetween, isDue, newCard } from "./srs.js";
 import { parseManualText, TOTAL_PAGES } from "./quran.js";
 import { toPhoto } from "./media.js";
-import { normalizeQuranItems, setQuranItems } from "./habits.js";
+import { normalizeQuranItems, setQuranItems, normalizeDuas } from "./habits.js";
 
 export const DEFAULTS = {
   maxReviews: 30,      // أقصى عدد صفحات في جلسة المراجعة
@@ -62,9 +62,10 @@ export async function saveMotivations() {
 // ---------- عاداتي: خطة ملء الصحيفة ----------
 // plan: { start, name } · days: { "YYYY-MM-DD": { quran, morning, prayers: [..], custom: { id: 1 } } }
 // weeks: { "1": { topic, duas, notes } } · custom: [{ id, name, icon }] · harvest: { wird, keep, add, duas }
+// duas: «أدعيتي» [{ id, text, cat }] — مستقلة عن الخطة (تبقى عند بدء خطة جديدة)
 export const HABITS_KEY = "__habits";
 // quranItems: بنود «القرآن» [{ id, kind: ward|read|hifz, surah }] · وإنجازها اليومي في days[d].quran (الورد) و days[d].q
-export const habits = { plan: null, days: {}, weeks: {}, custom: [], harvest: {}, quranItems: normalizeQuranItems() };
+export const habits = { plan: null, days: {}, weeks: {}, custom: [], harvest: {}, quranItems: normalizeQuranItems(), duas: [] };
 setQuranItems(habits.quranItems);
 
 export function setQuranList(list) {
@@ -79,6 +80,7 @@ export function setHabits(data) {
   habits.weeks = data?.weeks && typeof data.weeks === "object" ? data.weeks : {};
   habits.custom = Array.isArray(data?.custom) ? data.custom.filter(c => c && c.id && c.name) : [];
   habits.harvest = data?.harvest && typeof data.harvest === "object" ? data.harvest : {};
+  habits.duas = normalizeDuas(data?.duas);
 }
 
 export async function saveHabits() {

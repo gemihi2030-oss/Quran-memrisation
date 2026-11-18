@@ -5,6 +5,7 @@ import { DB, Store } from "../db.js";
 import { cachedTextCount, downloadWholeQuran, TOTAL_PAGES } from "../quran.js";
 import { todayStr } from "../srs.js";
 import { show } from "../router.js";
+import { normalizeDuas } from "../habits.js";
 
 const root = () => $("#view-settings");
 
@@ -113,12 +114,16 @@ async function importData(file) {
   }
   // خطة العادات: إن لم توجد خطة نأخذ المستوردة كما هي، وإلا نضيف الأيام والعادات الناقصة فقط
   if (data.habits && typeof data.habits === "object") {
+    const localDuas = habits.duas;
     if (!habits.plan) setHabits(data.habits);
     else {
       for (const [d, e] of Object.entries(data.habits.days || {})) if (!habits.days[d]) habits.days[d] = e;
       for (const c of data.habits.custom || []) if (c?.id && !habits.custom.some(x => x.id === c.id)) habits.custom.push(c);
       for (const [w, f] of Object.entries(data.habits.weeks || {})) habits.weeks[w] = { ...(f || {}), ...(habits.weeks[w] || {}) };
     }
+    // أدعيتي: نضيف الناقص فقط ولا نحذف شيئاً
+    const incoming = normalizeDuas(data.habits.duas);
+    habits.duas = [...localDuas, ...incoming.filter(d => !localDuas.some(x => x.id === d.id))];
     await saveHabits();
   }
   if (data.reviewLog && typeof data.reviewLog === "object") {

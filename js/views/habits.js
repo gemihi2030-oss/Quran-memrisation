@@ -14,6 +14,7 @@ import { getPageAyahs, renderAyahs, surahLabel, surahPages, SURAH_NAMES, TOTAL_P
 import { updateChrome } from "../router.js";
 import { surahProgress } from "./cards.js";
 import { openEditor } from "./editor.js";
+import { openDuas } from "./duas.js";
 
 const root = () => $("#view-habits");
 const reader = () => $("#readerDialog");
@@ -159,12 +160,15 @@ function checklistHTML() {
             .map((p, i) => `<button type="button" class="hb-part${entry[h.id]?.[i] ? " on" : ""}" data-action="part" data-h="${h.id}" data-i="${i}" aria-pressed="${!!entry[h.id]?.[i]}" title="${PART_NAMES[p]}">${p}</button>`)
             .join("")}</div>`
         : "";
+      const extra = h.id === "dua"
+        ? `<button type="button" class="btn small hb-read" data-action="duas">🤲 أدعيتي${habits.duas.length ? ` (${habits.duas.length})` : ""}</button>`
+        : "";
       return `<div class="hb-row ${state}${h.optional ? " optional" : ""}" data-action="toggle" data-h="${h.id}">
         <span class="hb-check" aria-hidden="true">${v === 1 ? "✓" : ""}</span>
         <div class="hb-body">
           <div class="hb-name">${h.icon} ${h.name}${h.core ? ` <span class="core" title="من الحد الأدنى">⭐</span>` : ""}</div>
           ${hint ? `<div class="hb-hint">${hint}</div>` : ""}
-          ${parts}
+          ${parts}${extra}
         </div>
       </div>`;
     })
@@ -443,6 +447,7 @@ function referenceHTML() {
     <h4>🤲 الدعاء والصدقة</h4>
     <ul>
       <li>مواطن الإجابة: السجود، بين الأذان والإقامة، آخر الليل، آخر ساعة من يوم الجمعة.</li>
+      <li>اكتب أدعيتك الخاصة في «🤲 أدعيتي» (من بند الدعاء) لتجدها مرتبة حسب الموضوع.</li>
       <li>الصدقة: خصّص مبلغاً يومياً ولو صغيراً «فاتقوا النار ولو بشق تمرة» — مال، إطعام، إصلاح بين اثنين، صدقة جارية.</li>
     </ul>
   </details>`;
@@ -651,6 +656,14 @@ delegate(root(), {
     changed();
   },
   read: el => openReader(viewDay, el.dataset.id),
+  duas: () =>
+    openDuas({
+      date: dateOfDay(habits.plan.start, viewDay),
+      onChange: () => {
+        renderHabits();
+        updateChrome();
+      },
+    }),
   "q-toggle": el => {
     const it = getQuranItems().find(i => i.id === el.dataset.id);
     if (!it) return;
