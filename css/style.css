@@ -826,3 +826,6 @@ dialog.lightbox:has(.lb-note) img { max-height: 58dvh; }
 .note-list.compact .hikma-author { margin: 0; font-size: .82rem; }
 .note-list.compact .note-src, .note-list.compact .display-toggle { display: none; }
 .note-list.compact .note-foot { justify-content: flex-end; }
+/* في العرض المصغّر: سطران من النص المحفوظ حتى لعنصر «الصورة فقط» */
+.note-snippet { display: none; }
+.note-list.compact .note-snippet { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin: 0 0 2px; font-size: .92rem; line-height: 1.7; color: var(--muted); white-space: pre-wrap; }

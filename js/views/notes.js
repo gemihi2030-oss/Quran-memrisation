@@ -104,6 +104,7 @@ export function noteItemHTML(kind, m, { editable = false, toggle = false } = {})
     ${m.img ? `<button type="button" class="motiv-img" data-action="view-${kind}" data-id="${m.id}"><img src="${m.img}" alt="" loading="lazy"></button>` : ""}
     <div class="note-main">
       ${text}
+      ${showText(m) ? "" : `<p class="note-snippet">${m.text ? esc(m.text) : "🖼️ صورة"}</p>`}
       ${quote && m.author ? `<p class="hikma-author">— ${esc(m.author)}</p>` : ""}
       <div class="row between wrap note-foot"><span class="note-src">${noteSourceHTML(m)}</span><span class="row gap-s">${toggle || editable ? displayToggleHTML(m, kind) : ""}${editable ? `<button type="button" class="icon-btn small" data-action="edit-${kind}" data-id="${m.id}" aria-label="تعديل">✏️</button>` : ""}</span></div>
     </div>
