@@ -530,40 +530,45 @@ function trendHTML({ values, cols, max = 100, ticks = [100, 75, 50, 25], unit = 
   const CW = 10;
   const W = n * CW;
   const H = 120;
-  const TOP = 6;
+  const TOP = 8;
   const BOT = 2;
   const yOf = v => +(TOP + (1 - Math.min(v, max) / max) * (H - TOP - BOT)).toFixed(2);
   const xOf = i => +(W - (i + 0.5) * CW).toFixed(2);
-  const pts = values.map((v, i) => (v == null ? null : [xOf(i), yOf(v)])).filter(Boolean);
-  if (!pts.length) return `<p class="muted small center hb-pempty">${empty}</p>`;
-  let line;
-  let first;
-  let last;
-  if (pts.length === 1) {
-    const [x, y] = pts[0];
-    line = `M ${x + CW / 2} ${y} L ${x - CW / 2} ${y}`;
-    first = x + CW / 2;
-    last = x - CW / 2;
-  } else {
-    line = smoothPath(pts, TOP, H - BOT);
-    first = pts[0][0];
-    last = pts[pts.length - 1][0];
-  }
-  const area = `${line} L ${last} ${H - BOT} L ${first} ${H - BOT} Z`;
+  const idx = values.map((v, i) => (v == null ? -1 : i)).filter(i => i >= 0);
+  const pts = idx.map(i => [xOf(i), yOf(values[i])]);
+  let shapes = "";
   const id = `hbTrend${++trendSeq}`;
+  if (pts.length >= 2) {
+    const line = smoothPath(pts, TOP, H - BOT);
+    const area = `${line} L ${pts[pts.length - 1][0]} ${H - BOT} L ${pts[0][0]} ${H - BOT} Z`;
+    shapes = `<path d="${area}" fill="url(#${id})"/><path d="${line}" class="line"/>`;
+  } else if (pts.length === 1) {
+    // يوم واحد: عمود مظلّل تحت النقطة حتى يظهر بوضوح
+    const [x, y] = pts[0];
+    shapes = `<rect x="${x - CW / 2}" y="${y}" width="${CW}" height="${H - BOT - y}" fill="url(#${id})"/>`;
+  }
   const grid = ticks.map(v => `<line x1="0" x2="${W}" y1="${yOf(v)}" y2="${yOf(v)}"/>`).join("");
   const labels = ticks.map(v => `<span style="top:${((yOf(v) / H) * 100).toFixed(1)}%">${v}${unit}</span>`).join("");
+  // النقاط وقيمة آخر يوم فوق المخطط (بالنسب المئوية حتى تبقى دائرية مهما تمدد المخطط)
+  const pos = (x, y) => `left:${((x / W) * 100).toFixed(2)}%;top:${((y / H) * 100).toFixed(2)}%`;
+  const dots = pts.map(([x, y]) => `<i class="dot" style="${pos(x, y)}"></i>`).join("");
+  const lastI = idx[idx.length - 1];
+  const lp = pts[pts.length - 1];
+  const last = pts.length ? `<b class="val${lp[1] / H < 0.3 ? " below" : ""}" style="${pos(...lp)}">${values[lastI]}${unit}</b>` : "";
   const row = key => `<div class="${key === "top" ? "xs" : "xn"}">${cols.map(c => `<span class="w${c.w}" title="${esc(c.title || "")}">${c[key] ?? ""}</span>`).join("")}</div>`;
   return `<div class="hb-trend">
     <div class="hb-trend-plot">
-      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
-        <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" style="stop-color:var(--primary-2);stop-opacity:.6"/><stop offset="1" style="stop-color:var(--primary-2);stop-opacity:.04"/>
-        </linearGradient></defs>
-        <g class="grid">${grid}</g>
-        <path d="${area}" fill="url(#${id})"/>
-        <path d="${line}" class="line"/>
-      </svg>
+      <div class="plot">
+        <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+          <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" style="stop-color:var(--primary-2);stop-opacity:.6"/><stop offset="1" style="stop-color:var(--primary-2);stop-opacity:.04"/>
+          </linearGradient></defs>
+          <g class="grid">${grid}</g>
+          ${shapes}
+        </svg>
+        ${dots}${last}
+        ${pts.length ? "" : `<p class="empty">${empty}</p>`}
+      </div>
       <div class="yax">${labels}</div>
     </div>
     <div class="hb-trend-x" style="--n:${n}">${row("top")}${cols.some(c => c.bottom != null) ? row("bottom") : ""}</div>
@@ -640,7 +645,9 @@ function monthHTML() {
         <button class="btn small" data-action="month-next" aria-label="الشهر التالي">←</button>
       </div>
       ${kpisHTML(tickTotals(rows, dates, t), st)}
-      ${counted ? "" : `<p class="muted small center hb-pempty">لا توجد أيام من الخطة في هذا الشهر بعد.</p>`}
+      <h4 class="hb-ptitle">📈 منحنى التقدّم</h4>
+      ${trendHTML({ values: scores, cols: dayCols, empty: "لا توجد أيام من الخطة في هذا الشهر بعد." })}
+      <h4 class="hb-ptitle">☑️ جدول المتابعة</h4>
       <div class="hb-grid-wrap">
         <table class="hb-grid">
           <thead>
@@ -653,10 +660,8 @@ function monthHTML() {
         </table>
       </div>
       <p class="muted small hb-grid-hint">اضغط على المربع لتعليم البند في ذلك اليوم، وعلى رقم اليوم لفتحه. اسحب الجدول يميناً ويساراً.</p>
-      <h4 class="hb-ptitle">📈 منحنى التقدّم</h4>
-      ${trendHTML({ values: scores, cols: dayCols, empty: "يظهر المنحنى بعد أول يوم من الخطة في هذا الشهر." })}
       <h4 class="hb-ptitle">✅ عدد البنود المنجزة يومياً</h4>
-      ${trendHTML({ values: doneCounts, cols: dayCols, max: mainRows.length, ticks: [mainRows.length, Math.round(mainRows.length / 2)], unit: "", empty: "يظهر بعد أول يوم من الخطة في هذا الشهر." })}
+      ${trendHTML({ values: doneCounts, cols: dayCols, max: mainRows.length, ticks: [mainRows.length, Math.round(mainRows.length / 2)], unit: "", empty: "لا توجد أيام من الخطة في هذا الشهر بعد." })}
       ${counted ? topsHTML(rows, rateOf) : ""}
     </div>`;
 }
@@ -705,7 +710,13 @@ function yearHTML() {
         <button class="btn small" data-action="year-next" aria-label="السنة التالية">←</button>
       </div>
       ${kpisHTML(tickTotals(rows, all, t), st)}
-      ${counted ? "" : `<p class="muted small center hb-pempty">لا توجد أيام من الخطة في هذه السنة بعد.</p>`}
+      <h4 class="hb-ptitle">📈 منحنى السنة</h4>
+      ${trendHTML({
+        values: per.map(m => (m.st.days ? m.st.avg : null)),
+        cols: per.map((m, i) => ({ top: i + 1, w: q(i), title: monthLabel(m.ym) })),
+        empty: "لا توجد أيام من الخطة في هذه السنة بعد.",
+      })}
+      <h4 class="hb-ptitle">☑️ نسبة كل بند في كل شهر</h4>
       <div class="hb-grid-wrap">
         <table class="hb-grid year">
           <thead>
@@ -717,12 +728,6 @@ function yearHTML() {
         </table>
       </div>
       <p class="muted small hb-grid-hint">كل خانة: نسبة البند في ذلك الشهر. اضغط على شهر لفتح جدوله.</p>
-      <h4 class="hb-ptitle">📈 منحنى السنة</h4>
-      ${trendHTML({
-        values: per.map(m => (m.st.days ? m.st.avg : null)),
-        cols: per.map((m, i) => ({ top: i + 1, w: q(i), title: monthLabel(m.ym) })),
-        empty: "يظهر المنحنى بعد أول شهر من التتبّع.",
-      })}
       ${counted ? topsHTML(rows, rateOf) : ""}
     </div>`;
 }
