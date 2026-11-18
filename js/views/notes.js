@@ -1,7 +1,8 @@
-// 💡 تدبر الآيات (لكل صفحة) و 💚 التحفيز (لكل التطبيق)
+// 💡 تدبر الآيات (لكل صفحة) و 💚 التحفيز و 💎 الحكم والأقوال (لكل التطبيق)
 // نافذة واحدة للإضافة/التعديل: نص + صورة (لقطة شاشة لمنشور مثلاً) + المصدر (رابط أو اسم كتاب) + الوقت في الفيديو
-import { $, esc, toast, delegate, compressImage } from "../util.js";
-import { pages, savePage, motivations, saveMotivations, newId } from "../state.js";
+import { $, esc, toast, delegate, compressImage, viewToggleHTML } from "../util.js";
+import { pages, savePage, motivations, saveMotivations, hikam, saveHikam, newId } from "../state.js";
+import { Store } from "../db.js";
 import { firstWords, arDigits, SURAH_NAMES } from "../quran.js";
 import { safeUrl, parseTime, formatTime, sourceLink } from "../media.js";
 import { todayStr, parseDate } from "../srs.js";
@@ -11,7 +12,22 @@ import { openGallery } from "./lightbox.js";
 
 const dlg = () => $("#noteDialog");
 const listDlg = () => $("#motivationDialog");
-let ctx = null; // { kind: "tadabbur" | "motivation", page, isNew, draft, onSaved }
+let ctx = null; // { kind: "tadabbur" | "motivation" | "hikma", page, isNew, draft, onSaved }
+
+// القوائم العامة: نفس النافذة ونفس طريقة العرض، ولكلٍّ قائمته ومفتاح حفظه
+export const COLLECTIONS = {
+  motivation: {
+    list: motivations, save: saveMotivations, icon: "💚", title: "التحفيز", today: "تحفيز اليوم", one: "تحفيز",
+    add: "＋ إضافة تحفيز", empty: "لا يوجد شيء بعد. أضف أول ما يحفّزك 💚",
+    intro: "احفظ هنا ما يحفّزك على الحفظ والمراجعة: قصة، حديث، مقولة، صورة… سيظهر لك واحد كل يوم.",
+  },
+  hikma: {
+    list: hikam, save: saveHikam, icon: "💎", title: "حكم وأقوال", today: "حكمة اليوم", one: "حكمة",
+    add: "＋ إضافة حكمة", empty: "لا توجد حكم بعد. أضف أول حكمة أو قول أعجبك 💎",
+    intro: "اجمع هنا الحكم والأقوال التي تعجبك: قول لصحابي أو عالم، أثر، بيت شعر… مكتوبة أو بصورتها. تظهر لك حكمة كل يوم.",
+  },
+};
+const col = kind => COLLECTIONS[kind] || COLLECTIONS.motivation;
 
 // ---------- عرض مشترك ----------
 // المصدر: رابط ← زر يفتحه (يوتيوب على الوقت المحدد) · نص ← اسم كتاب
@@ -47,11 +63,12 @@ export async function toggleDisplay(kind, id, page) {
     else t.display = "image";
     await savePage(rec);
   } else {
-    const m = motivations.find(x => x.id === id);
+    const c = col(kind);
+    const m = c.list.find(x => x.id === id);
     if (!m) return;
     if (m.display === "image") delete m.display;
     else m.display = "image";
-    await saveMotivations();
+    await c.save();
   }
 }
 
@@ -74,37 +91,50 @@ export function tadabburListHTML(rec, { editable = false } = {}) {
     .join("");
 }
 
-// toggle: زر «الصورة فقط / إظهار النص» · editable: زر التعديل
-export function motivationItemHTML(m, { editable = false, toggle = false } = {}) {
-  return `<article class="motiv-item">
-    ${m.img ? `<button type="button" class="motiv-img" data-action="view-motivation" data-id="${m.id}"><img src="${m.img}" alt="" loading="lazy"></button>` : ""}
-    ${showText(m) ? `<p class="motiv-text clamp" data-action="expand">${esc(m.text)}</p>` : ""}
-    <div class="row between wrap">${noteSourceHTML(m)}<span class="row gap-s">${toggle || editable ? displayToggleHTML(m, "motivation") : ""}${editable ? `<button type="button" class="icon-btn small" data-action="edit-motivation" data-id="${m.id}" aria-label="تعديل">✏️</button>` : ""}</span></div>
+// عنصر تحفيز أو حكمة · toggle: زر «الصورة فقط / إظهار النص» · editable: زر التعديل
+// الحكمة: النص بشكل اقتباس + القائل
+export function noteItemHTML(kind, m, { editable = false, toggle = false } = {}) {
+  const quote = kind === "hikma";
+  const text = showText(m)
+    ? quote
+      ? `<blockquote class="hikma-text clamp" data-action="expand">${esc(m.text)}</blockquote>`
+      : `<p class="motiv-text clamp" data-action="expand">${esc(m.text)}</p>`
+    : "";
+  return `<article class="motiv-item${quote ? " hikma-item" : ""}">
+    ${m.img ? `<button type="button" class="motiv-img" data-action="view-${kind}" data-id="${m.id}"><img src="${m.img}" alt="" loading="lazy"></button>` : ""}
+    <div class="note-main">
+      ${text}
+      ${quote && m.author ? `<p class="hikma-author">— ${esc(m.author)}</p>` : ""}
+      <div class="row between wrap note-foot"><span class="note-src">${noteSourceHTML(m)}</span><span class="row gap-s">${toggle || editable ? displayToggleHTML(m, kind) : ""}${editable ? `<button type="button" class="icon-btn small" data-action="edit-${kind}" data-id="${m.id}" aria-label="تعديل">✏️</button>` : ""}</span></div>
+    </div>
   </article>`;
 }
+export const motivationItemHTML = (m, opts) => noteItemHTML("motivation", m, opts);
 
-// تحفيز اليوم: يبدأ كل يوم بعنصر مختلف، والأزرار تتنقل بينها
-let motivCursor = null;
-export function currentMotivation(step = 0) {
-  const n = motivations.length;
+// عنصر اليوم: يبدأ كل يوم بعنصر مختلف، والأزرار تتنقل بينها
+const cursors = {};
+export function currentItem(kind, step = 0) {
+  const list = col(kind).list;
+  const n = list.length;
   if (!n) return null;
-  if (motivCursor === null) motivCursor = Math.floor(parseDate(todayStr()) / 86400000) % n;
-  motivCursor = (((motivCursor + step) % n) + n) % n;
-  return { item: motivations[motivCursor], index: motivCursor, total: n };
+  if (cursors[kind] == null) cursors[kind] = Math.floor(parseDate(todayStr()) / 86400000) % n;
+  cursors[kind] = (((cursors[kind] + step) % n) + n) % n;
+  return { item: list[cursors[kind]], index: cursors[kind], total: n };
 }
+export const currentMotivation = (step = 0) => currentItem("motivation", step);
 export const randomMotivation = () => (motivations.length ? motivations[Math.floor(Math.random() * motivations.length)] : null);
 
 // ---------- نافذة الإضافة / التعديل ----------
 export function openNoteEditor({ kind, page = null, id = null, onSaved = null }) {
   let item = null;
   if (kind === "tadabbur") item = id ? pages.get(page)?.tadabbur.find(t => t.id === id) : null;
-  else item = id ? motivations.find(m => m.id === id) : null;
+  else item = id ? col(kind).list.find(m => m.id === id) : null;
   ctx = {
     kind,
     page,
     onSaved,
     isNew: !item,
-    draft: item ? structuredClone(item) : { id: newId(), text: "", img: null, source: "", time: "", s: null, a: null, createdAt: new Date().toISOString() },
+    draft: item ? structuredClone(item) : { id: newId(), text: "", author: "", img: null, source: "", time: "", s: null, a: null, createdAt: new Date().toISOString() },
   };
   render();
   dlg().showModal();
@@ -113,8 +143,12 @@ export function openNoteEditor({ kind, page = null, id = null, onSaved = null })
 function render() {
   const { kind, page, isNew, draft } = ctx;
   const tad = kind === "tadabbur";
+  const hik = kind === "hikma";
   const rec = tad ? pages.get(page) : null;
-  const title = tad ? (isNew ? `💡 تدبر جديد · الصفحة ${page}` : `💡 تعديل التدبر · الصفحة ${page}`) : isNew ? "💚 إضافة تحفيز" : "💚 تعديل التحفيز";
+  const title = tad
+    ? isNew ? `💡 تدبر جديد · الصفحة ${page}` : `💡 تعديل التدبر · الصفحة ${page}`
+    : hik ? (isNew ? "💎 إضافة حكمة أو قول" : "💎 تعديل الحكمة")
+    : isNew ? "💚 إضافة تحفيز" : "💚 تعديل التحفيز";
   const ayahOptions = rec?.ayahs?.length
     ? rec.ayahs
         .filter(x => x.a)
@@ -139,11 +173,16 @@ function render() {
           ${ayahOptions}
         </select>
         ${rec?.ayahs?.length ? "" : `<small class="muted">(سجّل آيات الصفحة لتختار آية بعينها)</small>`}
-      </label>` : `<p class="muted small">قصة، حديث، مقولة، صورة… أي شيء يحفّزك على الحفظ والمراجعة. سيظهر لك في الرئيسية وبعد كل مراجعة.</p>`}
-      <label class="field">${tad ? "التدبر" : "النص"}
-        <textarea id="ntText" rows="7" placeholder="${tad ? "اكتب التدبر أو الصقه هنا (من منشور، كتاب، درس…)" : "اكتب أو الصق الكلمات التي تحفّزك…"}">${esc(draft.text)}</textarea>
+      </label>` : hik
+        ? `<p class="muted small">قول لصحابي أو عالم، أثر، بيت شعر، حكمة… اكتبها، أو أضف صورتها، أو الاثنين معاً.</p>`
+        : `<p class="muted small">قصة، حديث، مقولة، صورة… أي شيء يحفّزك على الحفظ والمراجعة. سيظهر لك في الرئيسية وبعد كل مراجعة.</p>`}
+      <label class="field">${tad ? "التدبر" : hik ? "الحكمة / القول" : "النص"}
+        <textarea id="ntText" rows="${hik ? 5 : 7}" placeholder="${tad ? "اكتب التدبر أو الصقه هنا (من منشور، كتاب، درس…)" : hik ? "اكتب الحكمة أو القول…" : "اكتب أو الصق الكلمات التي تحفّزك…"}">${esc(draft.text)}</textarea>
       </label>
-      <div class="field">🖼️ صورة <small class="muted">(اختياري — لقطة شاشة للمنشور مثلاً)</small>
+      ${hik ? `<label class="field">✍️ القائل <small class="muted">(اختياري)</small>
+        <input type="text" id="ntAuthor" value="${esc(draft.author)}" placeholder="مثلاً: ابن القيم، الحسن البصري، الشافعي…">
+      </label>` : ""}
+      <div class="field">🖼️ صورة <small class="muted">(اختياري — ${hik ? "صورة الحكمة أو تصميم لها" : "لقطة شاشة للمنشور مثلاً"})</small>
         <div id="ntImg">${imgHTML()}</div>
       </div>
       <label class="field">📚 المصدر <small class="muted">(رابط أو اسم كتاب / شيخ)</small>
@@ -199,6 +238,7 @@ async function save() {
   const item = { id: draft.id, text, createdAt: draft.createdAt, updatedAt: new Date().toISOString() };
   if (draft.img) item.img = draft.img;
   if (draft.img && draft.display === "image") item.display = "image";
+  if (kind === "hikma" && (draft.author || "").trim()) item.author = draft.author.trim();
   // رابط بلا مسافات ← نخزّنه كرابط كامل؛ غير ذلك ← اسم كتاب كما كُتب
   if (src) item.source = !/\s/.test(src) && /[./]/.test(src) && safeUrl(src) ? safeUrl(src) : src;
   if (time) item.time = parseTime(time) === null ? time : formatTime(parseTime(time));
@@ -218,32 +258,34 @@ async function save() {
       else list.push(item);
       await savePage(rec);
     } else {
-      const i = motivations.findIndex(m => m.id === item.id);
-      if (i >= 0) motivations[i] = item;
-      else motivations.unshift(item);
-      await saveMotivations();
+      const c = col(kind);
+      const i = c.list.findIndex(m => m.id === item.id);
+      if (i >= 0) c.list[i] = item;
+      else c.list.unshift(item);
+      await c.save();
     }
   } catch {
     $("#ntStatus").innerHTML = `<span class="warn">⚠️ تعذر الحفظ — ربما المساحة ممتلئة</span>`;
     return;
   }
   dlg().close();
-  toast(kind === "tadabbur" ? (isNew ? "تمت إضافة التدبر ✓" : "تم الحفظ ✓") : isNew ? "تمت إضافة التحفيز 💚" : "تم الحفظ ✓");
+  toast(!isNew ? "تم الحفظ ✓" : kind === "tadabbur" ? "تمت إضافة التدبر ✓" : kind === "hikma" ? "تمت إضافة الحكمة 💎" : "تمت إضافة التحفيز 💚");
   refresh();
   ctx.onSaved?.();
 }
 
 async function remove() {
   const { kind, page, draft } = ctx;
-  if (!confirm(kind === "tadabbur" ? "حذف هذا التدبر؟" : "حذف هذا التحفيز؟")) return;
+  if (!confirm(kind === "tadabbur" ? "حذف هذا التدبر؟" : kind === "hikma" ? "حذف هذه الحكمة؟" : "حذف هذا التحفيز؟")) return;
   if (kind === "tadabbur") {
     const rec = pages.get(page);
     rec.tadabbur = (rec.tadabbur || []).filter(t => t.id !== draft.id);
     await savePage(rec);
   } else {
-    const i = motivations.findIndex(m => m.id === draft.id);
-    if (i >= 0) motivations.splice(i, 1);
-    await saveMotivations();
+    const c = col(kind);
+    const i = c.list.findIndex(m => m.id === draft.id);
+    if (i >= 0) c.list.splice(i, 1);
+    await c.save();
   }
   dlg().close();
   toast("تم الحذف");
@@ -267,6 +309,7 @@ d.addEventListener("submit", e => {
 d.addEventListener("input", e => {
   const t = e.target;
   if (t.id === "ntText") ctx.draft.text = t.value;
+  else if (t.id === "ntAuthor") ctx.draft.author = t.value;
   else if (t.id === "ntSource" || t.id === "ntTime") {
     ctx.draft[t.id === "ntSource" ? "source" : "time"] = t.value;
     $("#ntStatus").innerHTML = hint();
@@ -288,35 +331,54 @@ d.addEventListener("change", async e => {
   }
 });
 
-// ---------- قائمة كل عناصر التحفيز ----------
-export function openMotivationList() {
+// ---------- قائمة كل العناصر (تحفيز أو حكم) ----------
+let listKind = "motivation";
+let listView = Store.get("notesView", "detail"); // detail = الصور كاملة · compact = صورة مصغّرة وسطران
+export function openNoteList(kind = "motivation") {
+  listKind = kind;
   renderList();
   if (!listDlg().open) listDlg().showModal();
+  listDlg().querySelector(".sheet-body").scrollTop = 0;
 }
+export const openMotivationList = () => openNoteList("motivation");
 
 function renderList() {
+  const c = col(listKind);
+  const y = listDlg().querySelector(".sheet-body")?.scrollTop || 0;
   listDlg().innerHTML = `
     <header class="sheet-head">
-      <h2>💚 التحفيز (${motivations.length})</h2>
-      <button type="button" class="icon-btn" data-action="close" aria-label="إغلاق">✕</button>
+      <h2>${c.icon} ${c.title} (${c.list.length})</h2>
+      <div class="row gap-s">
+        ${c.list.length ? viewToggleHTML("note-view", listView) : ""}
+        <button type="button" class="icon-btn" data-action="close" aria-label="إغلاق">✕</button>
+      </div>
     </header>
-    <div class="sheet-body">
-      ${motivations.length ? motivations.map(m => motivationItemHTML(m, { editable: true })).join("") : `<p class="muted center">لا يوجد شيء بعد. أضف أول ما يحفّزك 💚</p>`}
+    <div class="sheet-body note-list${listView === "compact" ? " compact" : ""}">
+      ${c.list.length ? c.list.map(m => noteItemHTML(listKind, m, { editable: true })).join("") : `<p class="muted center">${c.empty}</p>`}
     </div>
     <footer class="sheet-foot">
       <span class="grow"></span>
-      <button type="button" class="btn primary" data-action="add-motivation">＋ إضافة تحفيز</button>
+      <button type="button" class="btn primary" data-action="add-note">${c.add}</button>
     </footer>`;
+  listDlg().querySelector(".sheet-body").scrollTop = y;
 }
 
 const ld = listDlg();
+const reList = () => ld.open && renderList();
 delegate(ld, {
   close: () => ld.close(),
-  "add-motivation": () => openNoteEditor({ kind: "motivation", onSaved: () => ld.open && renderList() }),
-  "edit-motivation": el => openNoteEditor({ kind: "motivation", id: el.dataset.id, onSaved: () => ld.open && renderList() }),
-  "view-motivation": el => viewMotivation(el.dataset.id),
+  "add-note": () => openNoteEditor({ kind: listKind, onSaved: reList }),
+  "edit-motivation": el => openNoteEditor({ kind: "motivation", id: el.dataset.id, onSaved: reList }),
+  "edit-hikma": el => openNoteEditor({ kind: "hikma", id: el.dataset.id, onSaved: reList }),
+  "view-motivation": el => viewNote("motivation", el.dataset.id),
+  "view-hikma": el => viewNote("hikma", el.dataset.id),
+  "note-view": el => {
+    listView = el.dataset.mode;
+    Store.set("notesView", listView);
+    renderList();
+  },
   "toggle-display": async el => {
-    await toggleDisplay("motivation", el.dataset.id);
+    await toggleDisplay(el.dataset.kind, el.dataset.id);
     renderList();
     refresh();
   },
@@ -324,15 +386,16 @@ delegate(ld, {
 });
 
 // ---------- عرض الصور بحجم الشاشة ----------
-// كل صور التحفيز في العارض، يبدأ من الصورة المضغوطة، وتتنقل بينها يميناً ويساراً
-export function viewMotivation(id) {
-  const withImg = motivations.filter(m => m.img);
+// كل صور القائمة في العارض، يبدأ من الصورة المضغوطة، وتتنقل بينها يميناً ويساراً
+export function viewNote(kind, id) {
+  const c = col(kind);
+  const withImg = c.list.filter(m => m.img);
   const start = withImg.findIndex(m => m.id === id);
   if (start < 0) return;
   openGallery(
     withImg.map(m => ({
       src: m.img,
-      caption: "💚 تحفيز",
+      caption: `${c.icon} ${c.one}${m.author ? ` · ${m.author}` : ""}`,
       note: showText(m) ? m.text : "",
       url: safeUrl(m.source) ? m.source : "",
       time: m.time,
@@ -340,6 +403,7 @@ export function viewMotivation(id) {
     start
   );
 }
+export const viewMotivation = id => viewNote("motivation", id);
 
 export function viewTadabburImage(page, id) {
   const t = pages.get(page)?.tadabbur.find(x => x.id === id);

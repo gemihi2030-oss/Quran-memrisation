@@ -1,9 +1,9 @@
 // الشاشة الرئيسية: الإحصائيات، المراجعات القادمة، الأجزاء، الصفحات الضعيفة
 import { $, esc, delegate } from "../util.js";
-import { pages, dueList, streak, retention, todayCount, weakPages, motivations } from "../state.js";
+import { pages, dueList, streak, retention, todayCount, weakPages } from "../state.js";
 import { habitsSummary } from "./habits.js";
 import { openDuas } from "./duas.js";
-import { currentMotivation, motivationItemHTML, openNoteEditor, openMotivationList, viewMotivation, toggleDisplay } from "./notes.js";
+import { COLLECTIONS, currentItem, noteItemHTML, openNoteEditor, openNoteList, viewNote, toggleDisplay } from "./notes.js";
 import { Store } from "../db.js";
 import { TOTAL_PAGES, juzRange, surahLabel, firstSurahOfPage } from "../quran.js";
 import { todayStr, addDays, daysBetween, parseDate, relativeDay } from "../srs.js";
@@ -114,35 +114,38 @@ function habitsCardHTML() {
   </div>`;
 }
 
-// 💚 تحفيز اليوم: يبدأ كل يوم بعنصر مختلف، والأزرار (أو السحب بالإصبع) تتنقل بين العناصر
-function motivationHTML(step = 0) {
-  const cur = currentMotivation(step);
+// 💚 تحفيز اليوم و 💎 حكمة اليوم: يبدأ كل يوم بعنصر مختلف، والأزرار (أو السحب بالإصبع) تتنقل بين العناصر
+function noteCardHTML(kind, step = 0) {
+  const c = COLLECTIONS[kind];
+  const cls = `card motiv-card${kind === "hikma" ? " hikma-card" : ""}`;
+  const cur = currentItem(kind, step);
   if (!cur) {
-    return `<div class="card motiv-card empty">
-      <h2>💚 تحفيز</h2>
-      <p class="muted small">احفظ هنا ما يحفّزك على الحفظ والمراجعة: قصة، حديث، مقولة، صورة… سيظهر لك واحد كل يوم.</p>
-      <button class="btn" data-action="add-motivation">＋ إضافة تحفيز</button>
+    return `<div class="${cls} empty" id="card-${kind}" data-kind="${kind}">
+      <h2>${c.icon} ${c.title}</h2>
+      <p class="muted small">${c.intro}</p>
+      <button class="btn" data-action="add-note" data-kind="${kind}">${c.add}</button>
     </div>`;
   }
   const { item, index, total } = cur;
-  return `<div class="card motiv-card" id="motivCard">
+  return `<div class="${cls}" id="card-${kind}" data-kind="${kind}">
     <div class="row between">
-      <h2>💚 تحفيز اليوم</h2>
-      <button class="icon-btn" data-action="add-motivation" aria-label="إضافة" title="إضافة">＋</button>
+      <h2>${c.icon} ${c.today}</h2>
+      <button class="icon-btn" data-action="add-note" data-kind="${kind}" aria-label="${c.add}" title="${c.add}">＋</button>
     </div>
-    ${motivationItemHTML(item, { toggle: true })}
+    ${noteItemHTML(kind, item, { toggle: true })}
     ${total > 1 ? `<div class="motiv-nav">
-      <button class="btn small" data-action="prev-motivation" aria-label="السابق">→ السابق</button>
+      <button class="btn small" data-action="prev-note" data-kind="${kind}" aria-label="السابق">→ السابق</button>
       <span class="muted small">${index + 1} / ${total}</span>
-      <button class="btn small" data-action="next-motivation" aria-label="التالي">التالي ←</button>
+      <button class="btn small" data-action="next-note" data-kind="${kind}" aria-label="التالي">التالي ←</button>
     </div>` : ""}
-    <button class="link-btn" data-action="all-motivation">عرض الكل (${total}) ←</button>
+    <button class="link-btn" data-action="all-notes" data-kind="${kind}">عرض الكل (${total}) ←</button>
   </div>`;
 }
+const motivationHTML = () => noteCardHTML("motivation") + noteCardHTML("hikma");
 
-const swapMotivation = step => {
-  const card = $("#motivCard");
-  if (card) card.outerHTML = motivationHTML(step);
+const swapNote = (kind, step) => {
+  const card = $(`#card-${kind}`);
+  if (card) card.outerHTML = noteCardHTML(kind, step);
 };
 
 // السورة التي تحفظها الآن (سورة آخر صفحة سجّلتها بنفسك) وتقدمك فيها
@@ -265,33 +268,36 @@ delegate(root(), {
   practice: () => startSession({ extra: true }),
   "all-pages": () => showPagesList(),
   "add-page": el => openEditor(+el.dataset.page),
-  "add-motivation": () => openNoteEditor({ kind: "motivation" }),
+  "add-note": el => openNoteEditor({ kind: el.dataset.kind }),
   "open-habits": () => show("habits"),
   "open-duas": () => openDuas({ onChange: renderHome }),
-  "next-motivation": () => swapMotivation(1),
-  "prev-motivation": () => swapMotivation(-1),
+  "next-note": el => swapNote(el.dataset.kind, 1),
+  "prev-note": el => swapNote(el.dataset.kind, -1),
   "toggle-display": async el => {
-    await toggleDisplay("motivation", el.dataset.id);
-    swapMotivation(0);
+    await toggleDisplay(el.dataset.kind, el.dataset.id);
+    swapNote(el.dataset.kind, 0);
   },
-  "all-motivation": () => openMotivationList(),
-  "view-motivation": el => viewMotivation(el.dataset.id),
+  "all-notes": el => openNoteList(el.dataset.kind),
+  "view-motivation": el => viewNote("motivation", el.dataset.id),
+  "view-hikma": el => viewNote("hikma", el.dataset.id),
   expand: el => el.classList.toggle("clamp"),
   "surah-pages": el => showPagesList({ surah: +el.dataset.s }),
   "surah-maps": el => showMaps({ surah: +el.dataset.s }),
   "open-page": el => openDetail(+el.dataset.page),
 });
 
-// السحب بالإصبع على بطاقة التحفيز (في الاتجاه العربي: نحو اليمين = التالي)
-let motivTouchX = null;
+// السحب بالإصبع على بطاقة التحفيز أو الحكمة (في الاتجاه العربي: نحو اليمين = التالي)
+let touch = null;
 root().addEventListener("touchstart", e => {
-  motivTouchX = e.target.closest("#motivCard") ? e.touches[0].clientX : null;
+  const card = e.target.closest(".motiv-card[data-kind]");
+  touch = card ? { x: e.touches[0].clientX, kind: card.dataset.kind } : null;
 }, { passive: true });
 root().addEventListener("touchend", e => {
-  if (motivTouchX === null) return;
-  const dx = e.changedTouches[0].clientX - motivTouchX;
-  motivTouchX = null;
-  if (Math.abs(dx) > 60 && motivations.length > 1) swapMotivation(dx > 0 ? 1 : -1);
+  if (!touch) return;
+  const dx = e.changedTouches[0].clientX - touch.x;
+  const { kind } = touch;
+  touch = null;
+  if (Math.abs(dx) > 60 && COLLECTIONS[kind].list.length > 1) swapNote(kind, dx > 0 ? 1 : -1);
 });
 
 root().addEventListener("keydown", e => {

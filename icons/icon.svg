@@ -1,9 +1,46 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#0f5132"/>
-  <g fill="none" stroke="#d4b25a" stroke-width="22" stroke-linejoin="round">
-    <rect x="136" y="136" width="240" height="240"/>
-    <rect x="136" y="136" width="240" height="240" transform="rotate(45 256 256)"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#17865d"/>
+      <stop offset="1" stop-color="#063b26"/>
+    </linearGradient>
+    <radialGradient id="glow" cx=".5" cy=".46" r=".5">
+      <stop offset="0" stop-color="#2bb27f" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#2bb27f" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f8df94"/>
+      <stop offset=".55" stop-color="#e0b04d"/>
+      <stop offset="1" stop-color="#b8862b"/>
+    </linearGradient>
+    <linearGradient id="page" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fffaf0"/>
+      <stop offset="1" stop-color="#efe3c4"/>
+    </linearGradient>
+    <linearGradient id="pageR" x1="1" y1="0" x2="0" y2="0">
+      <stop offset="0" stop-color="#fffaf0"/>
+      <stop offset="1" stop-color="#efe3c4"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect width="512" height="512" rx="112" fill="url(#glow)"/>
+  <g transform="translate(256 256) scale(1) translate(-256 -256)">
+  <!-- review ring -->
+  <path d="M 330.2 126.5 A 158 158 0 1 1 138.6 160.3" fill="none" stroke="url(#gold)" stroke-width="24" stroke-linecap="round"/>
+  <path d="M 165.3 130.6 L 109.3 142.0 L 159.8 187.5 Z" fill="url(#gold)" stroke="url(#gold)" stroke-width="10" stroke-linejoin="round"/>
+  <!-- ۞ -->
+  <polygon points="256.0,130.0 266.5,140.5 281.5,140.5 281.5,155.5 292.0,166.0 281.5,176.5 281.5,191.5 266.5,191.5 256.0,202.0 245.5,191.5 230.5,191.5 230.5,176.5 220.0,166.0 230.5,155.5 230.5,140.5 245.5,140.5" fill="url(#gold)"/>
+  <circle cx="256" cy="166" r="11" fill="#0d5638"/>
+  <!-- cover -->
+  <path d="M256 258 C 226 238 182 233 138 239 L 138 352 C 182 346 226 350 256 370 C 286 350 330 346 374 352 L 374 239 C 330 233 286 238 256 258 Z" fill="url(#gold)"/>
+  <!-- pages -->
+  <path d="M256 246 C 228 226 188 219 152 224 L 152 338 C 188 333 228 338 256 358 Z" fill="url(#page)"/>
+  <path d="M256 246 C 284 226 324 219 360 224 L 360 338 C 324 333 284 338 256 358 Z" fill="url(#pageR)"/>
+  <!-- lines of text -->
+  <g fill="none" stroke="#c9b27a" stroke-width="6" stroke-linecap="round" opacity=".75">
+    <path d="M172 252 Q 206 245 238 258"/><path d="M172 278 Q 206 271 238 284"/><path d="M172 304 Q 206 297 238 310"/>
+    <path d="M340 252 Q 306 245 274 258"/><path d="M340 278 Q 306 271 274 284"/><path d="M340 304 Q 306 297 274 310"/>
   </g>
-  <circle cx="256" cy="256" r="58" fill="#d4b25a"/>
-  <circle cx="256" cy="256" r="26" fill="#0f5132"/>
+  <path d="M256 246 L 256 358" stroke="#b8862b" stroke-width="4" stroke-linecap="round"/>
+  </g>
 </svg>

@@ -811,3 +811,18 @@ dialog.lightbox:has(.lb-note) img { max-height: 58dvh; }
 .dua-compact .dua-n { width: 24px; height: 24px; font-size: .75rem; }
 .dua-compact .dua-item .dua-n { margin-top: max(0px, calc((var(--dua-size) * .8 * 1.65 - 24px) / 2)); }
 .dua-compact .dua { margin-top: 14px; font-size: 1rem; }
+
+/* ---------- 💎 حكم وأقوال ---------- */
+.hikma-card { border-color: var(--gold); background: linear-gradient(180deg, var(--gold-soft), var(--surface) 70%); }
+.hikma-text { margin: 10px 0 4px; padding: 2px 14px; border-inline-start: 3px solid var(--gold); font-size: 1.08rem; line-height: 1.95; font-weight: 500; white-space: pre-wrap; }
+.hikma-author { margin: 2px 0 6px; padding-inline-start: 17px; color: var(--gold); font-weight: 700; font-size: .92rem; }
+
+/* قائمة التحفيز / الحكم مصغّرة: صورة صغيرة + سطران */
+.note-list.compact .motiv-item { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; }
+.note-list.compact .motiv-img { flex: none; width: 64px; height: 64px; margin: 0; border-radius: 10px; }
+.note-list.compact .motiv-img img { width: 100%; height: 100%; max-height: none; object-fit: cover; }
+.note-list.compact .note-main { flex: 1; min-width: 0; }
+.note-list.compact .motiv-text, .note-list.compact .hikma-text { margin: 0 0 2px; -webkit-line-clamp: 2; font-size: .95rem; line-height: 1.7; }
+.note-list.compact .hikma-author { margin: 0; font-size: .82rem; }
+.note-list.compact .note-src, .note-list.compact .display-toggle { display: none; }
+.note-list.compact .note-foot { justify-content: flex-end; }

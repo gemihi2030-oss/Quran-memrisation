@@ -59,6 +59,15 @@ export async function saveMotivations() {
   await DB.pages.put({ page: MOTIVATION_KEY, items: motivations });
 }
 
+// ---------- 💎 حكم وأقوال ----------
+// مثل التحفيز + القائل: [{ id, text, author?, img?, display?, source?, time?, createdAt }]
+export const HIKAM_KEY = "__hikam";
+export const hikam = [];
+
+export async function saveHikam() {
+  await DB.pages.put({ page: HIKAM_KEY, items: hikam });
+}
+
 // ---------- عاداتي: خطة ملء الصحيفة ----------
 // plan: { start, name } · days: { "YYYY-MM-DD": { quran, morning, prayers: [..], custom: { id: 1 } } }
 // weeks: { "1": { topic, duas, notes } } · custom: [{ id, name, icon }] · harvest: { wird, keep, add, duas }
@@ -91,6 +100,7 @@ export async function loadPages() {
   const all = await DB.pages.all();
   pages.clear();
   motivations.length = 0;
+  hikam.length = 0;
   setHabits(null);
   for (const r of all) {
     if (r.page === HABITS_KEY) {
@@ -99,6 +109,10 @@ export async function loadPages() {
     }
     if (r.page === MOTIVATION_KEY) {
       if (Array.isArray(r.items)) motivations.push(...r.items.filter(m => m && m.id));
+      continue;
+    }
+    if (r.page === HIKAM_KEY) {
+      if (Array.isArray(r.items)) hikam.push(...r.items.filter(m => m && m.id));
       continue;
     }
     const rec = normalizeRecord(r);

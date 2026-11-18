@@ -1,6 +1,6 @@
 // الإعدادات: المراجعة، العرض، العمل دون إنترنت، النسخ الاحتياطي
 import { $, delegate, toast, downloadFile } from "../util.js";
-import { settings, saveSettings, pages, loadPages, normalizeRecord, savePages, reviewLog, DEFAULTS, motivations, saveMotivations, habits, setHabits, saveHabits } from "../state.js";
+import { settings, saveSettings, pages, loadPages, normalizeRecord, savePages, reviewLog, DEFAULTS, motivations, saveMotivations, hikam, saveHikam, habits, setHabits, saveHabits } from "../state.js";
 import { DB, Store } from "../db.js";
 import { cachedTextCount, downloadWholeQuran, TOTAL_PAGES } from "../quran.js";
 import { todayStr } from "../srs.js";
@@ -86,6 +86,7 @@ async function exportData() {
     reviewLog: reviewLog(),
     pages: [...pages.values()],
     motivation: motivations,
+    hikam,
     habits,
   };
   downloadFile(`quran-memorisation-${todayStr()}.json`, JSON.stringify(data));
@@ -106,11 +107,16 @@ async function importData(file) {
   const clash = valid.filter(p => pages.has(+p.page)).length;
   const incomingMotiv = Array.isArray(data.motivation) ? data.motivation.filter(m => m && m.id) : [];
   const newMotiv = incomingMotiv.filter(m => !motivations.some(x => x.id === m.id));
-  if (!confirm(`استيراد ${valid.length} صفحة${newMotiv.length ? ` و${newMotiv.length} تحفيز` : ""}؟${clash ? `\n${clash} صفحة منها موجودة مسبقاً وسيتم استبدالها.` : ""}`)) return;
+  const newHikam = (Array.isArray(data.hikam) ? data.hikam : []).filter(m => m && m.id && !hikam.some(x => x.id === m.id));
+  if (!confirm(`استيراد ${valid.length} صفحة${newMotiv.length ? ` و${newMotiv.length} تحفيز` : ""}${newHikam.length ? ` و${newHikam.length} حكمة` : ""}؟${clash ? `\n${clash} صفحة منها موجودة مسبقاً وسيتم استبدالها.` : ""}`)) return;
   await savePages(valid.map(normalizeRecord));
   if (newMotiv.length) {
     motivations.push(...newMotiv);
     await saveMotivations();
+  }
+  if (newHikam.length) {
+    hikam.push(...newHikam);
+    await saveHikam();
   }
   // خطة العادات: إن لم توجد خطة نأخذ المستوردة كما هي، وإلا نضيف الأيام والعادات الناقصة فقط
   if (data.habits && typeof data.habits === "object") {
@@ -166,6 +172,7 @@ delegate(root(), {
     Store.set("reviewLog", {});
     pages.clear();
     motivations.length = 0;
+    hikam.length = 0;
     setHabits(null);
     toast("تم حذف البيانات");
     show("home");
