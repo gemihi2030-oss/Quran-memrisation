@@ -67,6 +67,7 @@ export function renderHabits() {
     ${referenceHTML()}
     ${harvestHTML(today > PLAN_DAYS, maxDay)}
     ${planSettingsHTML()}`;
+  placeGrid();
 }
 
 function renderIntro() {
@@ -348,13 +349,13 @@ function weekHTML(maxDay) {
     </div>`;
 }
 
-// ---------- الشهر والسنة ----------
+// ---------- الشهر والسنة: جدول متابعة (البنود صفوفاً، والأيام أو الأشهر أعمدة) ----------
 const PERIODS = [["week", "أسبوع"], ["month", "شهر"], ["year", "سنة"]];
-const WEEK_LETTERS = ["س", "ح", "ن", "ث", "ر", "خ", "ج"]; // السبت … الجمعة
+const DAY_LETTERS = ["س", "ح", "ن", "ث", "ر", "خ", "ج"]; // السبت … الجمعة
 const pad2 = n => String(n).padStart(2, "0");
 const monthLabel = (ym, opts = { month: "long", year: "numeric" }) => parseDate(`${ym}-01`).toLocaleDateString("ar-DZ", opts);
 const levelOf = pct => (pct >= 100 ? "l4" : pct >= 70 ? "l3" : pct >= 40 ? "l2" : pct > 0 ? "l1" : "l0");
-const daysWord = n => (n === 1 ? "يوم" : n === 2 ? "يومان" : n <= 10 ? "أيام" : "يوماً");
+let gridScroll = null; // موضع التمرير الأفقي للجدول بعد تعليم مربع
 
 function hijri(date, opts) {
   try {
@@ -373,15 +374,6 @@ function hijriSpan(a, b, withMonth = true) {
   const mb = hijri(b, { month: "long" });
   if (ya === yb) return ma === mb ? `${ma} ${ya}` : `${ma} – ${mb} ${ya}`;
   return `${ma} ${ya} – ${mb} ${yb}`;
-}
-
-// حالة يوم في التقويم: خارج الخطة، قادم، أو بلون نسبة إنجازه
-function dayInfo(date, t) {
-  const d = planDay(habits.plan.start, date);
-  if (d < 1 || d > PLAN_DAYS) return { cls: "out", d: null };
-  if (date > t) return { cls: "future", d: null };
-  const sc = dayScore(habits.days[date], habits.custom);
-  return { cls: `${levelOf(sc.pct)}${sc.minimum ? " min" : ""}`, d, pct: sc.pct };
 }
 
 function periodTabsHTML() {
@@ -416,32 +408,180 @@ function ratesHTML(all) {
     .join("")}</div>`;
 }
 
-function periodStatsHTML(st, label) {
-  if (!st.days) return `<p class="muted small center hb-pempty">لا توجد أيام من الخطة ${label} بعد.</p>`;
-  return `<div class="stats hb-pstats">
-      <div class="stat"><b>${st.avg}٪</b><span>متوسط الإنجاز</span></div>
-      <div class="stat"><b>${st.minDays}/${st.days}</b><span>أيام بالحد الأدنى</span></div>
-      <div class="stat"><b>${st.active}/${st.days}</b><span>أيام سجّلت فيها</span></div>
-      <div class="stat"><b>${st.pages}</b><span>صفحة من الختمة</span></div>
-    </div>
-    <h4 class="hb-ptitle">نسبة كل بند ${label}</h4>
-    ${ratesHTML(st.rates)}`;
+// صفوف الجدول: كل بند (وبنود القرآن الفرعية مكان بندها) مع قراءة قيمته وتبديلها
+function trackRows() {
+  const rows = [];
+  for (const h of HABITS) {
+    if (h.group) {
+      for (const it of getQuranItems()) {
+        const name = it.kind === "ward" ? "ورد الختمة" : `${it.kind === "hifz" ? "حفظ" : "قراءة"} ${SURAH_NAMES[it.surah - 1]}`;
+        rows.push({
+          key: `q:${it.id}`, rateId: `q:${it.id}`, icon: QURAN_ICONS[it.kind], name, sub: true,
+          value: e => (quranItemDone(it, e) ? 1 : 0),
+          toggle: e => setQuranItemDone(it, e, !quranItemDone(it, e)),
+        });
+      }
+      continue;
+    }
+    rows.push({
+      key: h.id, rateId: h.id, icon: h.icon, name: h.name, optional: !!h.optional,
+      value: e => habitValue(h, e),
+      toggle: e => {
+        if (h.parts) {
+          const all = habitValue(h, e) === 1;
+          e[h.id] = h.parts.map(() => (all ? 0 : 1));
+        } else e[h.id] = e[h.id] ? 0 : 1;
+      },
+    });
+  }
+  for (const c of habits.custom) {
+    rows.push({
+      key: `c:${c.id}`, rateId: c.id, icon: c.icon || "⭐", name: c.name,
+      value: e => customValue(c, e),
+      toggle: e => {
+        e.custom = { ...(e.custom || {}), [c.id]: e.custom?.[c.id] ? 0 : 1 };
+      },
+    });
+  }
+  return rows;
+}
+
+// out = خارج الخطة · future = لم يأتِ بعد · past = يوم من الخطة مضى (يُحسب ويُعلَّم)
+function dayState(date, t) {
+  const d = planDay(habits.plan.start, date);
+  if (d < 1 || d > PLAN_DAYS) return "out";
+  return date > t ? "future" : "past";
+}
+
+// ✓ ما أنجزته و ✗ ما فاتك في أيام الخطة التي مضت
+function tickTotals(rows, dates, t) {
+  let done = 0;
+  let slots = 0;
+  for (const d of dates) {
+    if (dayState(d, t) !== "past") continue;
+    for (const r of rows) {
+      if (r.optional) continue;
+      slots++;
+      done += r.value(habits.days[d]);
+    }
+  }
+  done = Math.round(done);
+  return { done, missed: slots - done };
+}
+
+function kpisHTML(tot, st) {
+  return `<div class="hb-kpi4">
+    <div class="ok"><b>${tot.done}</b><span>✓ أنجزت</span></div>
+    <div class="no"><b>${tot.missed}</b><span>✗ فاتني</span></div>
+    <div><b>${st.avg}٪</b><span>متوسط الإنجاز</span></div>
+    <div><b>${st.minDays}/${st.days}</b><span>أيام بالحد الأدنى</span></div>
+  </div>`;
+}
+
+// منحنى التقدّم (البداية يميناً كالجدول) · values: نسب أو null للأيام التي لا تُحسب
+function smoothPath(p, top, bottom) {
+  const cy = y => Math.min(bottom, Math.max(top, y));
+  let d = `M ${p[0][0].toFixed(1)} ${p[0][1].toFixed(1)}`;
+  for (let i = 0; i < p.length - 1; i++) {
+    const p0 = p[i - 1] || p[i];
+    const p1 = p[i];
+    const p2 = p[i + 1];
+    const p3 = p[i + 2] || p2;
+    const c1 = [p1[0] + (p2[0] - p0[0]) / 6, cy(p1[1] + (p2[1] - p0[1]) / 6)];
+    const c2 = [p2[0] - (p3[0] - p1[0]) / 6, cy(p2[1] - (p3[1] - p1[1]) / 6)];
+    d += ` C ${c1[0].toFixed(1)} ${c1[1].toFixed(1)} ${c2[0].toFixed(1)} ${c2[1].toFixed(1)} ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`;
+  }
+  return d;
+}
+
+function curveHTML(values, empty) {
+  const W = 320;
+  const H = 120;
+  const L = 26; // مكان أرقام النسب على اليسار
+  const top = 8;
+  const bottom = H - 6;
+  const n = values.length;
+  const pts = values
+    .map((v, i) => (v == null ? null : [W - 6 - (i / Math.max(1, n - 1)) * (W - 6 - L), bottom - (v / 100) * (bottom - top)]))
+    .filter(Boolean);
+  if (pts.length < 2) return `<p class="muted small center hb-pempty">${empty}</p>`;
+  const line = smoothPath(pts, top, bottom);
+  const area = `${line} L ${pts[pts.length - 1][0].toFixed(1)} ${bottom} L ${pts[0][0].toFixed(1)} ${bottom} Z`;
+  const grid = [25, 50, 75, 100]
+    .map(v => {
+      const y = bottom - (v / 100) * (bottom - top);
+      return `<line x1="${L}" x2="${W - 2}" y1="${y}" y2="${y}"/><text x="2" y="${y + 3}">${v}٪</text>`;
+    })
+    .join("");
+  return `<svg class="hb-curve" viewBox="0 0 ${W} ${H}" role="img" aria-label="منحنى التقدّم">
+    <defs><linearGradient id="hbCurveFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" style="stop-color:var(--primary-2);stop-opacity:.45"/><stop offset="1" style="stop-color:var(--primary-2);stop-opacity:0"/>
+    </linearGradient></defs>
+    <g class="grid">${grid}</g>
+    <path d="${area}" fill="url(#hbCurveFill)"/>
+    <path d="${line}" class="line"/>
+    ${pts.map(([x, y]) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.2"/>`).join("")}
+  </svg>`;
+}
+
+// أكثر العادات التزاماً، والتي تحتاج اهتماماً
+function topsHTML(rows, rateOf) {
+  const list = rows.filter(r => !r.optional).map(r => ({ ...r, rate: rateOf[r.rateId] ?? 0 }));
+  const best = [...list].sort((a, b) => b.rate - a.rate).filter(r => r.rate > 0).slice(0, 5);
+  const weak = [...list].sort((a, b) => a.rate - b.rate).slice(0, 3);
+  const li = r => `<li><div><span>${esc(r.icon)} ${esc(r.name)}</span><b>${r.rate}٪</b></div></li>`;
+  return `<div class="hb-tops">
+    <div><h4>🏆 أكثر العادات التزاماً</h4>${best.length ? `<ol>${best.map(li).join("")}</ol>` : `<p class="muted small">لا شيء بعد.</p>`}</div>
+    <div><h4>🧗 تحتاج اهتماماً</h4><ol>${weak.map(li).join("")}</ol></div>
+  </div>`;
+}
+
+function rowNameHTML(r, rate) {
+  return `<th class="nm" scope="row"><div><span title="${esc(r.name)}">${esc(r.icon)} ${esc(r.name)}</span>${rate == null ? "" : `<b>${rate}٪</b>`}</div></th>`;
 }
 
 function monthHTML() {
   const t = todayStr();
   if (!viewMonth) viewMonth = dateOfDay(habits.plan.start, viewDay).slice(0, 7);
   const dates = monthDates(viewMonth);
-  const blanks = Array(satIndex(dates[0])).fill(`<span class="hb-cal-blank"></span>`);
-  const cells = dates.map(date => {
-    const info = dayInfo(date, t);
-    const num = +date.slice(8);
-    const extra = `${date === t ? " today" : ""}${info.d && info.d === viewDay ? " cur" : ""}`;
-    return info.d
-      ? `<button type="button" class="hb-day ${info.cls}${extra}" data-action="go-day" data-d="${info.d}" title="${fmtDate(date)} · اليوم ${info.d} · ${info.pct}٪">${num}</button>`
-      : `<span class="hb-day ${info.cls}${extra}" title="${fmtDate(date)}">${num}</span>`;
-  });
+  const rows = trackRows();
   const st = periodStats(habits, dates, t, habits.custom);
+  const rateOf = Object.fromEntries(st.rates.map(r => [r.id, r.rate]));
+  const states = dates.map(d => dayState(d, t));
+  const scores = dates.map((d, i) => (states[i] === "past" ? dayScore(habits.days[d], habits.custom).pct : null));
+  const wk = i => Math.floor(i / 7) + 1; // الأسبوع 1 = الأيام 1–7 …
+  const weeks = [...new Set(dates.map((_, i) => wk(i)))];
+
+  const bars = dates
+    .map((d, i) => `<td class="bar w${wk(i)}">${scores[i] == null ? "" : `<div><i style="height:${Math.max(3, scores[i])}%"></i></div><small>${scores[i]}</small>`}</td>`)
+    .join("");
+  const bands = weeks.map(w => `<th class="band w${w}" colspan="${dates.filter((_, i) => wk(i) === w).length}">الأسبوع ${w}</th>`).join("");
+  const letters = dates.map((d, i) => `<th class="dl w${wk(i)}">${DAY_LETTERS[satIndex(d)]}</th>`).join("");
+  const nums = dates
+    .map((d, i) => {
+      const cls = `dn w${wk(i)}${d === t ? " today" : ""}`;
+      const n = i + 1;
+      return states[i] === "past"
+        ? `<th class="${cls}"><button type="button" data-action="go-day" data-d="${planDay(habits.plan.start, d)}" title="${fmtDate(d)} · ${scores[i]}٪">${n}</button></th>`
+        : `<th class="${cls}">${n}</th>`;
+    })
+    .join("");
+  const counted = st.days > 0;
+  const body = rows
+    .map(r => {
+      const cells = dates
+        .map((d, i) => {
+          const cls = `ck w${wk(i)}`;
+          if (states[i] !== "past") return `<td class="${cls} ${states[i] === "out" ? "out" : "fut"}"><i></i></td>`;
+          const v = r.value(habits.days[d]);
+          const on = v === 1;
+          return `<td class="${cls}${on ? " on" : v > 0 ? " half" : ""}"><button type="button" data-action="cell" data-r="${r.key}" data-date="${d}" aria-pressed="${on}" aria-label="${esc(r.name)} · ${i + 1}"><i>${on ? "✓" : ""}</i></button></td>`;
+        })
+        .join("");
+      return `<tr class="${r.sub ? "sub" : ""}${r.optional ? " opt" : ""}">${rowNameHTML(r, counted ? rateOf[r.rateId] ?? 0 : null)}${cells}</tr>`;
+    })
+    .join("");
+
   return `
     <div class="card hb-week hb-period">
       ${periodTabsHTML()}
@@ -450,28 +590,61 @@ function monthHTML() {
         <div class="center"><h3>🗓️ ${monthLabel(viewMonth)}</h3><small class="muted">${hijriSpan(dates[0], dates[dates.length - 1])}</small></div>
         <button class="btn small" data-action="month-next" aria-label="الشهر التالي">←</button>
       </div>
-      <div class="hb-cal">${WEEK_LETTERS.map(l => `<b>${l}</b>`).join("")}${blanks.join("")}${cells.join("")}</div>
-      ${legendHTML()}
-      ${periodStatsHTML(st, "في هذا الشهر")}
+      ${kpisHTML(tickTotals(rows, dates, t), st)}
+      ${counted ? "" : `<p class="muted small center hb-pempty">لا توجد أيام من الخطة في هذا الشهر بعد.</p>`}
+      <div class="hb-grid-wrap">
+        <table class="hb-grid">
+          <thead>
+            <tr class="bars"><th class="nm">📊 التقدّم اليومي</th>${bars}</tr>
+            <tr><th class="nm"></th>${bands}</tr>
+            <tr><th class="nm"></th>${letters}</tr>
+            <tr><th class="nm">العادة</th>${nums}</tr>
+          </thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+      <p class="muted small hb-grid-hint">اضغط على المربع لتعليم البند في ذلك اليوم، وعلى رقم اليوم لفتحه. اسحب الجدول يميناً ويساراً.</p>
+      <h4 class="hb-ptitle">📈 منحنى التقدّم</h4>
+      ${curveHTML(scores, "يظهر المنحنى بعد يومين من التتبّع في هذا الشهر.")}
+      ${counted ? topsHTML(rows, rateOf) : ""}
     </div>`;
 }
 
 function yearHTML() {
   const t = todayStr();
   if (!viewYear) viewYear = +dateOfDay(habits.plan.start, viewDay).slice(0, 4);
+  const rows = trackRows();
   const months = Array.from({ length: 12 }, (_, i) => `${viewYear}-${pad2(i + 1)}`);
-  const perMonth = months.map(ym => ({ ym, dates: monthDates(ym) })).map(m => ({ ...m, st: periodStats(habits, m.dates, t, habits.custom) }));
-  const blocks = perMonth.map(({ ym, dates, st }) => {
-    const blanks = `<i class="e"></i>`.repeat(satIndex(dates[0]));
-    const cells = dates.map(date => `<i class="hb-day ${dayInfo(date, t).cls}${date === t ? " today" : ""}"></i>`).join("");
-    return `<button type="button" class="hb-mini${st.days ? "" : " empty"}" data-action="open-month" data-m="${ym}" aria-label="${monthLabel(ym)}">
-      <span class="hb-mini-head"><b>${monthLabel(ym, { month: "long" })}</b>${st.days ? `<small>${st.avg}٪</small>` : ""}</span>
-      <span class="hb-mini-grid">${blanks}${cells}</span>
-    </button>`;
+  const per = months.map(ym => {
+    const dates = monthDates(ym);
+    const st = periodStats(habits, dates, t, habits.custom);
+    return { ym, dates, st, rateOf: Object.fromEntries(st.rates.map(r => [r.id, r.rate])) };
   });
-  const all = perMonth.flatMap(m => m.dates);
+  const all = per.flatMap(m => m.dates);
   const st = periodStats(habits, all, t, habits.custom);
-  const active = perMonth.filter(m => m.st.days);
+  const rateOf = Object.fromEntries(st.rates.map(r => [r.id, r.rate]));
+  const q = i => Math.floor(i / 3) + 1; // الثلاثي 1..4
+  const curYm = t.slice(0, 7);
+
+  const bars = per.map((m, i) => `<td class="bar w${q(i)}">${m.st.days ? `<div><i style="height:${Math.max(3, m.st.avg)}%"></i></div><small>${m.st.avg}</small>` : ""}</td>`).join("");
+  const bands = [1, 2, 3, 4].map(k => `<th class="band w${k}" colspan="3">الثلاثي ${k}</th>`).join("");
+  const names = per
+    .map((m, i) => `<th class="dn mn w${q(i)}${m.ym === curYm ? " today" : ""}"><button type="button" data-action="open-month" data-m="${m.ym}">${monthLabel(m.ym, { month: "long" })}</button></th>`)
+    .join("");
+  const counted = st.days > 0;
+  const body = rows
+    .map(r => {
+      const cells = per
+        .map((m, i) => {
+          if (!m.st.days) return `<td class="pc none w${q(i)}"></td>`;
+          const p = m.rateOf[r.rateId] ?? 0;
+          return `<td class="pc w${q(i)}${p >= 55 ? " hi" : ""}" style="--p:${p}%"><button type="button" data-action="open-month" data-m="${m.ym}">${p}</button></td>`;
+        })
+        .join("");
+      return `<tr class="${r.sub ? "sub" : ""}${r.optional ? " opt" : ""}">${rowNameHTML(r, counted ? rateOf[r.rateId] ?? 0 : null)}${cells}</tr>`;
+    })
+    .join("");
+
   return `
     <div class="card hb-week hb-period">
       ${periodTabsHTML()}
@@ -480,15 +653,40 @@ function yearHTML() {
         <div class="center"><h3>📆 سنة ${viewYear}</h3><small class="muted">${hijriSpan(all[0], all[all.length - 1], false)}</small></div>
         <button class="btn small" data-action="year-next" aria-label="السنة التالية">←</button>
       </div>
-      <div class="hb-year">${blocks.join("")}</div>
-      ${legendHTML()}
-      ${active.length
-        ? `<h4 class="hb-ptitle">متوسط كل شهر</h4><div class="hb-rates">${active
-            .map(m => `<div class="hb-rate"><span>${monthLabel(m.ym, { month: "long" })} <small class="muted">(${m.st.days} ${daysWord(m.st.days)})</small></span><div class="bar-bg"><i style="width:${m.st.avg}%"></i></div><b>${m.st.avg}٪</b></div>`)
-            .join("")}</div>`
-        : ""}
-      ${periodStatsHTML(st, "في هذه السنة")}
+      ${kpisHTML(tickTotals(rows, all, t), st)}
+      ${counted ? "" : `<p class="muted small center hb-pempty">لا توجد أيام من الخطة في هذه السنة بعد.</p>`}
+      <div class="hb-grid-wrap">
+        <table class="hb-grid year">
+          <thead>
+            <tr class="bars"><th class="nm">📊 متوسط كل شهر</th>${bars}</tr>
+            <tr><th class="nm"></th>${bands}</tr>
+            <tr><th class="nm">العادة</th>${names}</tr>
+          </thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+      <p class="muted small hb-grid-hint">كل خانة: نسبة البند في ذلك الشهر. اضغط على شهر لفتح جدوله.</p>
+      <h4 class="hb-ptitle">📈 منحنى السنة</h4>
+      ${curveHTML(per.map(m => (m.st.days ? m.st.avg : null)), "يظهر المنحنى بعد شهرين من التتبّع.")}
+      ${counted ? topsHTML(rows, rateOf) : ""}
     </div>`;
+}
+
+// بعد كل رسم: نُبقي الجدول حيث كان بعد تعليم مربع، وإلا نُظهر عمود اليوم (أو الشهر الحالي)
+function placeGrid() {
+  const wrap = root().querySelector(".hb-grid-wrap");
+  if (!wrap) return;
+  if (gridScroll !== null) {
+    wrap.scrollLeft = gridScroll;
+    gridScroll = null;
+    return;
+  }
+  const target = wrap.querySelector("thead .today");
+  if (!target) return;
+  const a = target.getBoundingClientRect();
+  const b = wrap.getBoundingClientRect();
+  if (!b.width) return;
+  wrap.scrollLeft += a.left + a.width / 2 - (b.left + b.width / 2);
 }
 
 // ---------- خريطة الأيام الـ75 ----------
@@ -876,6 +1074,14 @@ delegate(root(), {
   "year-next": () => {
     viewYear += 1;
     renderHabits();
+  },
+  cell: el => {
+    const r = trackRows().find(x => x.key === el.dataset.r);
+    const date = el.dataset.date;
+    if (!r || !date || date > todayStr()) return;
+    r.toggle(habits.days[date] || (habits.days[date] = {}));
+    gridScroll = root().querySelector(".hb-grid-wrap")?.scrollLeft ?? null;
+    changed();
   },
   "open-month": el => {
     viewMonth = el.dataset.m;
