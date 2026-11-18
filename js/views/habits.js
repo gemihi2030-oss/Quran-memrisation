@@ -645,8 +645,6 @@ function monthHTML() {
         <button class="btn small" data-action="month-next" aria-label="الشهر التالي">←</button>
       </div>
       ${kpisHTML(tickTotals(rows, dates, t), st)}
-      <h4 class="hb-ptitle">📈 منحنى التقدّم</h4>
-      ${trendHTML({ values: scores, cols: dayCols, empty: "لا توجد أيام من الخطة في هذا الشهر بعد." })}
       <h4 class="hb-ptitle">☑️ جدول المتابعة</h4>
       <div class="hb-grid-wrap">
         <table class="hb-grid">
@@ -660,6 +658,8 @@ function monthHTML() {
         </table>
       </div>
       <p class="muted small hb-grid-hint">اضغط على المربع لتعليم البند في ذلك اليوم، وعلى رقم اليوم لفتحه. اسحب الجدول يميناً ويساراً.</p>
+      <h4 class="hb-ptitle">📈 منحنى التقدّم</h4>
+      ${trendHTML({ values: scores, cols: dayCols, empty: "لا توجد أيام من الخطة في هذا الشهر بعد." })}
       <h4 class="hb-ptitle">✅ عدد البنود المنجزة يومياً</h4>
       ${trendHTML({ values: doneCounts, cols: dayCols, max: mainRows.length, ticks: [mainRows.length, Math.round(mainRows.length / 2)], unit: "", empty: "لا توجد أيام من الخطة في هذا الشهر بعد." })}
       ${counted ? topsHTML(rows, rateOf) : ""}
@@ -710,12 +710,6 @@ function yearHTML() {
         <button class="btn small" data-action="year-next" aria-label="السنة التالية">←</button>
       </div>
       ${kpisHTML(tickTotals(rows, all, t), st)}
-      <h4 class="hb-ptitle">📈 منحنى السنة</h4>
-      ${trendHTML({
-        values: per.map(m => (m.st.days ? m.st.avg : null)),
-        cols: per.map((m, i) => ({ top: i + 1, w: q(i), title: monthLabel(m.ym) })),
-        empty: "لا توجد أيام من الخطة في هذه السنة بعد.",
-      })}
       <h4 class="hb-ptitle">☑️ نسبة كل بند في كل شهر</h4>
       <div class="hb-grid-wrap">
         <table class="hb-grid year">
@@ -728,6 +722,12 @@ function yearHTML() {
         </table>
       </div>
       <p class="muted small hb-grid-hint">كل خانة: نسبة البند في ذلك الشهر. اضغط على شهر لفتح جدوله.</p>
+      <h4 class="hb-ptitle">📈 منحنى السنة</h4>
+      ${trendHTML({
+        values: per.map(m => (m.st.days ? m.st.avg : null)),
+        cols: per.map((m, i) => ({ top: i + 1, w: q(i), title: monthLabel(m.ym) })),
+        empty: "لا توجد أيام من الخطة في هذه السنة بعد.",
+      })}
       ${counted ? topsHTML(rows, rateOf) : ""}
     </div>`;
 }
